@@ -45,7 +45,25 @@ bun run src/cli.ts session add-url "Pull Request" "https://github.com/org/repo/p
 
 # Manually emit an activity
 bun run src/cli.ts session activity thought "Investigating the root cause"
+
+# Ask the user a question through Linear (they'll see it in the Linear UI)
+bun run src/cli.ts session activity elicitation "Which authentication provider should I use — OAuth2 or SAML?"
 ```
+
+## Asking for Clarification via Linear
+
+If you are **blocked on a decision** that prevents you from making meaningful progress, use elicitation to ask the user through Linear:
+
+```bash
+bun run src/cli.ts session activity elicitation "Your question here"
+```
+
+Use this when:
+- A requirement is ambiguous and you cannot make a reasonable default choice
+- You need to choose between fundamentally different approaches
+- The task description is missing critical information
+
+Do **not** use this for minor decisions you can make yourself. Prefer making reasonable assumptions and documenting them over blocking on every small choice.
 
 ## Typical Workflows
 
