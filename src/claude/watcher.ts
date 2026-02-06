@@ -30,13 +30,10 @@ export class Watcher {
   private lastSaveTime = Date.now();
   private lastScanTime = 0;
 
-  /** All files currently being tailed. */
   private readonly files = new Map<string, TailedFile>();
 
-  /** Session IDs seen in entries — used to discover linked successor files. */
   private readonly knownSessionIds = new Set<string>();
 
-  /** File paths we've already checked for linkage (avoid re-reading headers). */
   private readonly checkedFiles = new Set<string>();
 
   constructor(config: WatcherConfig, client: LinearClient) {
@@ -47,7 +44,6 @@ export class Watcher {
   }
 
   async run(): Promise<void> {
-    // Set up signal handlers
     const shutdown = () => {
       if (this.stopping) return;
       this.stopping = true;
@@ -56,7 +52,6 @@ export class Watcher {
     process.on("SIGTERM", shutdown);
     process.on("SIGINT", shutdown);
 
-    // Poll for initial session file
     let filePath: string | null = null;
     let loggedWaiting = false;
     while (!this.stopping) {
@@ -77,7 +72,6 @@ export class Watcher {
     logger.info({ path: filePath }, "Found session file");
     this.addFile(filePath);
 
-    // Main tailing loop
     while (!this.stopping) {
       let totalBytesRead = 0;
       for (const file of this.files.values()) {
@@ -90,7 +84,6 @@ export class Watcher {
       this.maybeSaveCursors();
     }
 
-    // Final flush
     for (const file of this.files.values()) {
       await this.readNewLines(file);
     }
@@ -120,13 +113,11 @@ export class Watcher {
     this.checkedFiles.add(filePath);
   }
 
-  /** Scan the project directory for new JSONL files linked to our session. */
   private async scanForSuccessors(): Promise<void> {
     const now = Date.now();
     if (now - this.lastScanTime < SUCCESSOR_SCAN_MS) return;
     this.lastScanTime = now;
 
-    // Use any tailed file to get the project directory
     const anyFile = this.files.values().next().value;
     if (!anyFile) return;
 
@@ -142,11 +133,9 @@ export class Watcher {
     }
   }
 
-  /** Check if a JSONL file's first few entries reference a known session ID. */
   private async isLinkedSession(filePath: string): Promise<boolean> {
     try {
       const file = Bun.file(filePath);
-      // Read just enough to get the first few lines
       const head = await file.slice(0, Math.min(file.size, 32_768)).text();
       const lines = head.split("\n").slice(0, MAX_LINK_CHECK_LINES);
 

@@ -1,5 +1,3 @@
-// --- Content blocks within assistant messages ---
-
 export interface ThinkingBlock {
   type: "thinking";
   thinking: string;
@@ -26,8 +24,6 @@ export interface ToolResultBlock {
 }
 
 export type ContentBlock = ThinkingBlock | TextBlock | ToolUseBlock | ToolResultBlock;
-
-// --- JSONL journal entry shapes ---
 
 interface EntryBase {
   uuid: string;
@@ -90,13 +86,9 @@ export type JournalEntry =
   | { type: "file-history-snapshot"; [key: string]: unknown }
   | { type: "system"; [key: string]: unknown };
 
-// --- Watcher configuration ---
-
 export interface WatcherConfig {
   sessionId: string;
 }
-
-// --- Cursor state for resume support ---
 
 export interface CursorState {
   byteOffset: number;

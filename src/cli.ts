@@ -6,8 +6,6 @@ const program = new Command()
   .name("linear-agent")
   .description("Claude-to-Linear bridge CLI");
 
-// --- Watch ---
-
 const watch = program
   .command("watch")
   .description("Watch an agent backend and emit activities to Linear");
@@ -21,8 +19,6 @@ watch
     const watcher = new Watcher({ sessionId: opts.sessionId }, client);
     await watcher.run();
   });
-
-// --- Issue ---
 
 const issue = program
   .command("issue")
@@ -111,8 +107,6 @@ issue
     });
   });
 
-// --- Session ---
-
 function getSessionId(opts: { id?: string }): string {
   const sessionId = opts.id ?? process.env.LINEAR_AGENT_SESSION_ID;
   if (!sessionId) {
@@ -177,8 +171,6 @@ session
     });
     console.log(`Activity emitted: ${type}`);
   });
-
-// --- Run ---
 
 program.parseAsync().catch((err) => {
   console.error(`Error: ${err.message ?? err}`);

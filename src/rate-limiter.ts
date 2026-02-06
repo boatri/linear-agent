@@ -17,7 +17,6 @@ export class RateLimiter {
       this.tokens -= 1;
       return;
     }
-    // Wait until a token is available
     const waitMs = Math.ceil((1 - this.tokens) / this.refillRate);
     await new Promise((resolve) => setTimeout(resolve, waitMs));
     this.refill();

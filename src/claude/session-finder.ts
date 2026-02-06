@@ -13,7 +13,6 @@ export async function findSessionFile(sessionId: string): Promise<string | null>
   return null;
 }
 
-/** List all UUID-named JSONL files in the same project directory. */
 export async function listProjectSessions(sessionFilePath: string): Promise<string[]> {
   const projectDir = dirname(sessionFilePath);
   const glob = new Glob("*.jsonl");

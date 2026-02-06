@@ -117,7 +117,6 @@ export class ActivityEmitter {
   }
 
   private async emitToolUse(block: ToolUseBlock, client: LinearClient): Promise<void> {
-    // Store for pairing with tool_result
     this.pendingToolUses.set(block.id, { name: block.name, input: block.input });
 
     const mapper = TOOL_MAPPING[block.name];
@@ -140,13 +139,11 @@ export class ActivityEmitter {
     if (!pending) return;
     this.pendingToolUses.delete(block.tool_use_id);
 
-    // Extract result text
     const resultText =
       typeof block.content === "string"
         ? block.content
         : block.content.map((c) => c.text).join("\n");
 
-    // Track plan updates from task/todo tools
     if (!block.is_error) {
       switch (pending.name) {
         case "TaskCreate":
