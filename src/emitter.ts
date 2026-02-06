@@ -11,9 +11,11 @@ import type {
 } from "./types";
 import { TOOL_MAPPING, truncate } from "./tool-mapping";
 import { RateLimiter } from "./rate-limiter";
+import { PlanTracker } from "./plan-tracker";
 import { logger as rootLogger } from "./logger";
 
 const logger = rootLogger.child({ module: "emitter" });
+const MAX_BODY_LENGTH = 10000;
 
 interface PendingTool {
   name: string;
@@ -24,6 +26,7 @@ export class ActivityEmitter {
   private readonly sessionId: string;
   private readonly rateLimiter: RateLimiter;
   private readonly pendingToolUses = new Map<string, PendingTool>();
+  private readonly planTracker = new PlanTracker();
 
   constructor(sessionId: string) {
     this.sessionId = sessionId;
@@ -92,7 +95,7 @@ export class ActivityEmitter {
   private async emitText(block: TextBlock, client: LinearClient): Promise<void> {
     const text = block.text.trim();
     if (!text) return;
-    await this.emit(client, { type: "response", body: truncate(text, 2000) });
+    await this.emit(client, { type: "response", body: truncate(text, MAX_BODY_LENGTH) });
   }
 
   private async emitToolUse(block: ToolUseBlock, client: LinearClient): Promise<void> {
@@ -125,6 +128,24 @@ export class ActivityEmitter {
         ? block.content
         : block.content.map((c) => c.text).join("\n");
 
+    // Track plan updates from task/todo tools
+    if (!block.is_error) {
+      switch (pending.name) {
+        case "TaskCreate":
+          this.planTracker.handleTaskCreate(pending.input, resultText);
+          await this.pushPlan(client);
+          break;
+        case "TaskUpdate":
+          this.planTracker.handleTaskUpdate(pending.input);
+          await this.pushPlan(client);
+          break;
+        case "TodoWrite":
+          this.planTracker.handleTodoWrite(pending.input);
+          await this.pushPlan(client);
+          break;
+      }
+    }
+
     if (block.is_error) {
       await this.emit(client, {
         type: "error",
@@ -138,6 +159,18 @@ export class ActivityEmitter {
 
     const mapped = mapper(pending.input, resultText);
     await this.emit(client, { type: "action", ...mapped });
+  }
+
+  private async pushPlan(client: LinearClient): Promise<void> {
+    if (!this.planTracker.hasPlan()) return;
+    await this.rateLimiter.acquire();
+    try {
+      await client.updateAgentSession(this.sessionId, {
+        plan: this.planTracker.toLinearPlan(),
+      });
+    } catch (err) {
+      logger.error({ err }, "Failed to update plan");
+    }
   }
 
   private async emit(
