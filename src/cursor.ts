@@ -1,13 +1,15 @@
 import { readFileSync, writeFileSync } from "fs";
+import { createHash } from "crypto";
 import type { CursorState } from "./types";
 
-function cursorPath(sessionId: string): string {
-  return `/tmp/claude-linear-cursor-${sessionId}.json`;
+function cursorPath(filePath: string): string {
+  const hash = createHash("sha256").update(filePath).digest("hex").slice(0, 16);
+  return `/tmp/claude-linear-cursor-${hash}.json`;
 }
 
-export function loadCursor(sessionId: string): CursorState | null {
+export function loadCursor(filePath: string): CursorState | null {
   try {
-    const data = JSON.parse(readFileSync(cursorPath(sessionId), "utf-8")) as CursorState;
+    const data = JSON.parse(readFileSync(cursorPath(filePath), "utf-8")) as CursorState;
     if (typeof data.byteOffset === "number" && typeof data.lineCount === "number") {
       return data;
     }
@@ -17,9 +19,9 @@ export function loadCursor(sessionId: string): CursorState | null {
   return null;
 }
 
-export function saveCursor(sessionId: string, cursor: CursorState): void {
+export function saveCursor(filePath: string, cursor: CursorState): void {
   try {
-    writeFileSync(cursorPath(sessionId), JSON.stringify(cursor));
+    writeFileSync(cursorPath(filePath), JSON.stringify(cursor));
   } catch {
     // Non-fatal
   }

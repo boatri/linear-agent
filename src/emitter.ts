@@ -11,6 +11,9 @@ import type {
 } from "./types";
 import { TOOL_MAPPING, truncate } from "./tool-mapping";
 import { RateLimiter } from "./rate-limiter";
+import { logger as rootLogger } from "./logger";
+
+const logger = rootLogger.child({ module: "emitter" });
 
 interface PendingTool {
   name: string;
@@ -66,13 +69,8 @@ export class ActivityEmitter {
     for (const block of content) {
       if (block.type === "tool_result") {
         await this.emitToolResult(block, entry, client);
-      } else if (block.type === "text" && !entry.toolUseResult) {
-        // User prompt text (not a tool result wrapper)
-        const text = block.text.trim();
-        if (text) {
-          await this.emit(client, { type: "prompt", body: truncate(text, 2000) });
-        }
       }
+      // Skip user text (prompts) — Linear shows these natively
     }
   }
 
@@ -155,7 +153,7 @@ export class ActivityEmitter {
         ...(ephemeral ? { ephemeral: true } : {}),
       });
     } catch (err) {
-      console.error(`[emitter] Failed to emit ${content.type}:`, err);
+      logger.error({ err, activityType: content.type }, "Failed to emit activity");
     }
   }
 }

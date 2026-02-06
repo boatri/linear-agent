@@ -1,147 +1,245 @@
 import type { LinearClient } from "@linear/sdk";
 import type { JournalEntry, WatcherConfig } from "./types";
-import { findSessionFile } from "./session-finder";
+import { findSessionFile, listProjectSessions } from "./session-finder";
 import { loadCursor, saveCursor } from "./cursor";
 import { ActivityEmitter } from "./emitter";
+import { logger as rootLogger } from "./logger";
+
+const logger = rootLogger.child({ module: "watcher" });
 
 const FILE_POLL_MS = 500;
+const SUCCESSOR_SCAN_MS = 3_000;
 const CURSOR_SAVE_LINES = 10;
 const CURSOR_SAVE_MS = 5_000;
+const MAX_LINK_CHECK_LINES = 5;
+
+interface TailedFile {
+  path: string;
+  byteOffset: number;
+  lineBuffer: string;
+  lineCount: number;
+  lastUuid: string;
+  linesSinceSave: number;
+}
 
 export class Watcher {
   private readonly config: WatcherConfig;
   private readonly client: LinearClient;
   private readonly emitter: ActivityEmitter;
   private stopping = false;
-  private byteOffset = 0;
-  private lineCount = 0;
-  private lastUuid = "";
-  private linesSinceSave = 0;
   private lastSaveTime = Date.now();
-  private lineBuffer = "";
+  private lastScanTime = 0;
+
+  /** All files currently being tailed. */
+  private readonly files = new Map<string, TailedFile>();
+
+  /** Session IDs seen in entries — used to discover linked successor files. */
+  private readonly knownSessionIds = new Set<string>();
+
+  /** File paths we've already checked for linkage (avoid re-reading headers). */
+  private readonly checkedFiles = new Set<string>();
 
   constructor(config: WatcherConfig, client: LinearClient) {
     this.config = config;
     this.client = client;
     this.emitter = new ActivityEmitter(config.sessionId);
+    this.knownSessionIds.add(config.sessionId);
   }
 
   async run(): Promise<void> {
-    // Restore cursor if resuming
-    const cursor = loadCursor(this.config.sessionId);
-    if (cursor) {
-      this.byteOffset = cursor.byteOffset;
-      this.lineCount = cursor.lineCount;
-      this.lastUuid = cursor.lastUuid;
-      console.error(`[watcher] Resuming from line ${this.lineCount}, byte ${this.byteOffset}`);
-    }
-
     // Set up signal handlers
     const shutdown = () => {
       if (this.stopping) return;
       this.stopping = true;
-      console.error("[watcher] Shutting down...");
+      logger.info("Shutting down...");
     };
     process.on("SIGTERM", shutdown);
     process.on("SIGINT", shutdown);
 
-    // Poll for file existence
+    // Poll for initial session file
     let filePath: string | null = null;
+    let loggedWaiting = false;
     while (!this.stopping) {
       filePath = await findSessionFile(this.config.sessionId);
       if (filePath) break;
-      console.error(`[watcher] Waiting for session file...`);
+      if (!loggedWaiting) {
+        logger.info("Waiting for session file...");
+        loggedWaiting = true;
+      }
       await sleep(FILE_POLL_MS);
     }
 
     if (!filePath || this.stopping) {
-      this.persistCursor();
+      this.persistAllCursors();
       return;
     }
 
-    console.error(`[watcher] Found session file: ${filePath}`);
+    logger.info({ path: filePath }, "Found session file");
+    this.addFile(filePath);
 
     // Main tailing loop
     while (!this.stopping) {
-      const bytesRead = await this.readNewLines(filePath);
-      if (bytesRead === 0) {
+      let totalBytesRead = 0;
+      for (const file of this.files.values()) {
+        totalBytesRead += await this.readNewLines(file);
+      }
+      await this.scanForSuccessors();
+      if (totalBytesRead === 0) {
         await sleep(FILE_POLL_MS);
       }
-      this.maybeSaveCursor();
+      this.maybeSaveCursors();
     }
 
-    // Final flush: read any remaining lines
-    await this.readNewLines(filePath);
-    this.persistCursor();
-    console.error(`[watcher] Stopped. Processed ${this.lineCount} lines.`);
+    // Final flush
+    for (const file of this.files.values()) {
+      await this.readNewLines(file);
+    }
+    this.persistAllCursors();
+    const totalLines = [...this.files.values()].reduce((sum, f) => sum + f.lineCount, 0);
+    logger.info({ lines: totalLines, files: this.files.size }, "Stopped");
   }
 
-  private async readNewLines(filePath: string): Promise<number> {
-    const file = Bun.file(filePath);
-    const size = file.size;
+  private addFile(filePath: string): void {
+    if (this.files.has(filePath)) return;
 
-    if (size <= this.byteOffset) return 0;
+    const cursor = loadCursor(filePath);
+    const file: TailedFile = {
+      path: filePath,
+      byteOffset: cursor?.byteOffset ?? 0,
+      lineBuffer: "",
+      lineCount: cursor?.lineCount ?? 0,
+      lastUuid: cursor?.lastUuid ?? "",
+      linesSinceSave: 0,
+    };
 
-    const chunk = await file.slice(this.byteOffset, size).text();
-    const startOffset = this.byteOffset;
-    this.byteOffset = size;
+    if (cursor) {
+      logger.info({ path: filePath, line: cursor.lineCount, byte: cursor.byteOffset }, "Resuming file from cursor");
+    }
 
-    // Prepend any buffered incomplete line
-    const data = this.lineBuffer + chunk;
-    this.lineBuffer = "";
+    this.files.set(filePath, file);
+    this.checkedFiles.add(filePath);
+  }
+
+  /** Scan the project directory for new JSONL files linked to our session. */
+  private async scanForSuccessors(): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastScanTime < SUCCESSOR_SCAN_MS) return;
+    this.lastScanTime = now;
+
+    // Use any tailed file to get the project directory
+    const anyFile = this.files.values().next().value;
+    if (!anyFile) return;
+
+    const candidates = await listProjectSessions(anyFile.path);
+    for (const candidate of candidates) {
+      if (this.checkedFiles.has(candidate)) continue;
+      this.checkedFiles.add(candidate);
+
+      if (await this.isLinkedSession(candidate)) {
+        logger.info({ path: candidate }, "Found linked successor session");
+        this.addFile(candidate);
+      }
+    }
+  }
+
+  /** Check if a JSONL file's first few entries reference a known session ID. */
+  private async isLinkedSession(filePath: string): Promise<boolean> {
+    try {
+      const file = Bun.file(filePath);
+      // Read just enough to get the first few lines
+      const head = await file.slice(0, Math.min(file.size, 32_768)).text();
+      const lines = head.split("\n").slice(0, MAX_LINK_CHECK_LINES);
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const entry = JSON.parse(line);
+          if (entry.sessionId && this.knownSessionIds.has(entry.sessionId)) {
+            return true;
+          }
+        } catch {
+          // Skip malformed lines
+        }
+      }
+    } catch {
+      // File might be gone or unreadable
+    }
+    return false;
+  }
+
+  private async readNewLines(file: TailedFile): Promise<number> {
+    const bunFile = Bun.file(file.path);
+    const size = bunFile.size;
+
+    if (size <= file.byteOffset) return 0;
+
+    const chunk = await bunFile.slice(file.byteOffset, size).text();
+    const startOffset = file.byteOffset;
+    file.byteOffset = size;
+
+    const data = file.lineBuffer + chunk;
+    file.lineBuffer = "";
 
     const lines = data.split("\n");
 
-    // If data doesn't end with \n, the last element is incomplete
     if (!data.endsWith("\n")) {
-      this.lineBuffer = lines.pop()!;
-      // Adjust byte offset: we haven't consumed the incomplete line
-      this.byteOffset -= Buffer.byteLength(this.lineBuffer);
+      file.lineBuffer = lines.pop()!;
+      file.byteOffset -= Buffer.byteLength(file.lineBuffer);
     }
 
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-      await this.processLine(trimmed);
+      await this.processLine(file, trimmed);
     }
 
     return size - startOffset;
   }
 
-  private async processLine(line: string): Promise<void> {
+  private async processLine(file: TailedFile, line: string): Promise<void> {
     let entry: JournalEntry;
     try {
       entry = JSON.parse(line) as JournalEntry;
     } catch {
-      return; // Skip malformed lines
+      return;
     }
 
-    this.lineCount++;
+    file.lineCount++;
     if ("uuid" in entry && typeof entry.uuid === "string") {
-      this.lastUuid = entry.uuid;
+      file.lastUuid = entry.uuid;
     }
-    this.linesSinceSave++;
+    if ("sessionId" in entry && typeof entry.sessionId === "string") {
+      this.knownSessionIds.add(entry.sessionId);
+    }
+    file.linesSinceSave++;
 
-    await this.emitter.process(entry, this.client);
+    try {
+      await this.emitter.process(entry, this.client);
+    } catch (err) {
+      logger.error({ err, file: file.path, line: file.lineCount }, "Error processing line");
+    }
   }
 
-  private maybeSaveCursor(): void {
+  private maybeSaveCursors(): void {
     const now = Date.now();
-    if (
-      this.linesSinceSave >= CURSOR_SAVE_LINES ||
-      now - this.lastSaveTime >= CURSOR_SAVE_MS
-    ) {
-      this.persistCursor();
+    const needsSave = now - this.lastSaveTime >= CURSOR_SAVE_MS ||
+      [...this.files.values()].some((f) => f.linesSinceSave >= CURSOR_SAVE_LINES);
+    if (needsSave) {
+      this.persistAllCursors();
     }
   }
 
-  private persistCursor(): void {
-    saveCursor(this.config.sessionId, {
-      byteOffset: this.byteOffset,
-      lineCount: this.lineCount,
-      lastUuid: this.lastUuid,
-    });
-    this.linesSinceSave = 0;
+  private persistAllCursors(): void {
+    for (const file of this.files.values()) {
+      if (file.linesSinceSave > 0 || file.lineCount > 0) {
+        saveCursor(file.path, {
+          byteOffset: file.byteOffset,
+          lineCount: file.lineCount,
+          lastUuid: file.lastUuid,
+        });
+        file.linesSinceSave = 0;
+      }
+    }
     this.lastSaveTime = Date.now();
   }
 }
