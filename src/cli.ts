@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { withClient, createClient } from "./client";
-import { Watcher } from "./watcher";
+import { Watcher } from "./claude/watcher";
 
 const program = new Command()
   .name("linear-agent")
@@ -8,9 +8,13 @@ const program = new Command()
 
 // --- Watch ---
 
-program
+const watch = program
   .command("watch")
-  .description("Tail a Claude session JSONL and emit activities to Linear")
+  .description("Watch an agent backend and emit activities to Linear");
+
+watch
+  .command("claude")
+  .description("Tail a Claude Code session JSONL and emit activities to Linear")
   .requiredOption("--session-id <id>", "Linear agent session ID")
   .action(async (opts: { sessionId: string }) => {
     const client = await createClient();

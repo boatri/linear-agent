@@ -60,7 +60,7 @@ The session ID is shared between Claude Code and Linear — the same UUID is use
 SESSION_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
 
 # Start watcher before Claude, in background
-bun run src/cli.ts watch --session-id $SESSION_ID &
+bun run src/cli.ts watch claude --session-id $SESSION_ID &
 WATCHER_PID=$!
 
 # Run Claude with the same session ID

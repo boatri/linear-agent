@@ -3,7 +3,7 @@ import type { JournalEntry, WatcherConfig } from "./types";
 import { findSessionFile, listProjectSessions } from "./session-finder";
 import { loadCursor, saveCursor } from "./cursor";
 import { ActivityEmitter } from "./emitter";
-import { logger as rootLogger } from "./logger";
+import { logger as rootLogger } from "../logger";
 
 const logger = rootLogger.child({ module: "watcher" });
 

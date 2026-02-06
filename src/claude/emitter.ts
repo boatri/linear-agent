@@ -11,9 +11,9 @@ import type {
   ToolResultBlock,
 } from "./types";
 import { TOOL_MAPPING, truncate } from "./tool-mapping";
-import { RateLimiter } from "./rate-limiter";
+import { RateLimiter } from "../rate-limiter";
 import { PlanTracker } from "./plan-tracker";
-import { logger as rootLogger } from "./logger";
+import { logger as rootLogger } from "../logger";
 
 const logger = rootLogger.child({ module: "emitter" });
 const MAX_BODY_LENGTH = 10000;
