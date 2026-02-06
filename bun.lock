@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "claude-linear-bridge",
+      "name": "linear-agent",
       "dependencies": {
         "@linear/sdk": "^73.0.0",
         "commander": "^14.0.3",

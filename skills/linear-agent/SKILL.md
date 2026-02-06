@@ -6,7 +6,7 @@ allowed-tools: Bash(bun run *cli.ts *)
 
 # Linear Agent CLI
 
-Use this skill to interact with Linear issues and agent sessions. The CLI is available at `bun run /path/to/claude-linear-bridge/src/cli.ts`.
+Use this skill to interact with Linear issues and agent sessions. The CLI is available at `bun run /path/to/linear-agent/src/cli.ts`.
 
 ## Environment Variables
 

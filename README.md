@@ -1,4 +1,4 @@
-# claude-linear-bridge
+# linear-agent
 
 Provides transparency into Claude Code sessions by streaming activities to Linear in real-time. Tails Claude Code's native JSONL session files and emits structured activities (thoughts, actions, responses, errors) to a Linear agent session.
 
