@@ -2,7 +2,7 @@ import pino from "pino";
 
 export const logger = pino({
   transport: {
-    target: "pino/file",
-    options: { destination: 2 }, // stderr
+    target: "pino-pretty",
+    options: { destination: 2, colorize: false },
   },
 });
