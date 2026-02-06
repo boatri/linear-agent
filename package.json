@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@linear/sdk": "^73.0.0",
+    "commander": "^14.0.3",
     "pino": "^10.3.0",
     "pino-pretty": "^13.1.3"
   },

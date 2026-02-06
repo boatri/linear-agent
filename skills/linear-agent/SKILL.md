@@ -13,7 +13,7 @@ Use this skill to interact with Linear issues and agent sessions. The CLI is ava
 These are pre-configured in your environment:
 - `LINEAR_CLIENT_ID` — OAuth app client ID
 - `LINEAR_CLIENT_SECRET` — OAuth app client secret
-- `LINEAR_AGENT_SESSION_ID` — Current agent session ID (for session commands)
+- `LINEAR_AGENT_SESSION_ID` — Current agent session ID (for session commands). Can also be passed as `session --id <id>`.
 
 ## Available Commands
 
