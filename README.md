@@ -40,6 +40,11 @@ When Claude uses task/todo tools, the watcher syncs them to Linear's agent plan:
 
 Status mapping: `pending` → `pending`, `in_progress` → `inProgress`, `completed` → `completed`, `deleted` → `canceled`.
 
+## Prerequisites
+
+- [Bun](https://bun.sh) runtime (v1.0+)
+- A [Linear](https://linear.app) account with an OAuth application
+
 ## Setup
 
 ```bash

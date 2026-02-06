@@ -1,8 +1,14 @@
 {
   "name": "linear-agent",
   "version": "0.1.0",
-  "private": true,
+  "description": "Stream Claude Code session activities to Linear in real-time",
   "type": "module",
+  "scripts": {
+    "build": "tsgo",
+    "lint": "oxlint",
+    "format": "oxfmt --write src/",
+    "start": "bun run src/cli.ts"
+  },
   "dependencies": {
     "@linear/sdk": "^73.0.0",
     "commander": "^14.0.3",
