@@ -74,13 +74,20 @@ export interface ProgressEntry extends EntryBase {
   data: unknown;
 }
 
+export interface QueueOperationEntry {
+  type: "queue-operation";
+  operation: string;
+  content?: string;
+  [key: string]: unknown;
+}
+
 export type JournalEntry =
   | AssistantEntry
   | UserEntry
   | SummaryEntry
   | ProgressEntry
+  | QueueOperationEntry
   | { type: "file-history-snapshot"; [key: string]: unknown }
-  | { type: "queue-operation"; [key: string]: unknown }
   | { type: "system"; [key: string]: unknown };
 
 // --- Watcher configuration ---

@@ -4,6 +4,7 @@ import type {
   AssistantEntry,
   UserEntry,
   SummaryEntry,
+  QueueOperationEntry,
   ThinkingBlock,
   TextBlock,
   ToolUseBlock,
@@ -44,7 +45,10 @@ export class ActivityEmitter {
       case "summary":
         await this.processSummary(entry, client);
         break;
-      // Skip: progress, file-history-snapshot, queue-operation, system
+      case "queue-operation":
+        await this.processQueueOperation(entry, client);
+        break;
+      // Skip: progress, file-history-snapshot, system
     }
   }
 
@@ -82,6 +86,20 @@ export class ActivityEmitter {
       type: "thought",
       body: `Context: ${truncate(entry.summary, 2000)}`,
     });
+  }
+
+  private async processQueueOperation(
+    entry: QueueOperationEntry,
+    client: LinearClient,
+  ): Promise<void> {
+    if (entry.operation !== "enqueue" || !entry.content) return;
+
+    const summary = entry.content.match(/<summary>(.*?)<\/summary>/s)?.[1];
+    if (!summary) return; // Not a task notification, just a queued user message
+
+    const status = entry.content.match(/<status>(.*?)<\/status>/)?.[1];
+    const type = status === "failed" ? "error" : "action";
+    await this.emit(client, { type, body: summary });
   }
 
   private async emitThinking(block: ThinkingBlock, client: LinearClient): Promise<void> {
