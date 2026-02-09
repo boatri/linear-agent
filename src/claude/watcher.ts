@@ -4,6 +4,7 @@ import { findSessionFile, listProjectSessions } from "./session-finder";
 import { loadCursor, saveCursor } from "./cursor";
 import { ActivityEmitter } from "./emitter";
 import { logger as rootLogger } from "../logger";
+import { releaseLock } from "./lock";
 
 const logger = rootLogger.child({ module: "watcher" });
 
@@ -48,6 +49,7 @@ export class Watcher {
       if (this.stopping) return;
       this.stopping = true;
       logger.info("Shutting down...");
+      releaseLock(this.config.sessionId);
     };
     process.on("SIGTERM", shutdown);
     process.on("SIGINT", shutdown);
@@ -66,6 +68,7 @@ export class Watcher {
 
     if (!filePath || this.stopping) {
       this.persistAllCursors();
+      releaseLock(this.config.sessionId);
       return;
     }
 
@@ -88,6 +91,7 @@ export class Watcher {
       await this.readNewLines(file);
     }
     this.persistAllCursors();
+    releaseLock(this.config.sessionId);
     const totalLines = [...this.files.values()].reduce((sum, f) => sum + f.lineCount, 0);
     logger.info({ lines: totalLines, files: this.files.size }, "Stopped");
   }

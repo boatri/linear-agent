@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import { linear } from "./linear";
 import { Watcher } from "./claude/watcher";
+import { acquireLock } from "./claude/lock";
 
 const program = new Command()
   .name("linear-agent")
@@ -16,6 +17,11 @@ watch
   .description("Tail a Claude Code session JSONL and emit activities to Linear")
   .requiredOption("--session-id <id>", "Linear agent session ID")
   .action(async (opts: { sessionId: string }) => {
+    if (!acquireLock(opts.sessionId)) {
+      console.log(`Watcher already running for session ${opts.sessionId}`);
+      process.exit(0);
+    }
+
     const watcher = new Watcher({ sessionId: opts.sessionId }, linear);
     await watcher.run();
   });
