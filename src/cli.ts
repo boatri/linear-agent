@@ -4,7 +4,7 @@ import { Watcher } from "./claude/watcher";
 
 const program = new Command()
   .name("linear-agent")
-  .description("Claude-to-Linear bridge CLI");
+  .description("Stream Claude Code sessions to Linear");
 
 const watch = program
   .command("watch")
@@ -111,17 +111,6 @@ const session = program
   .command("session")
   .description("Manage agent session")
   .option("--id <id>", "Linear agent session ID (or LINEAR_AGENT_SESSION_ID env var)");
-
-session
-  .command("update-plan")
-  .description("Replace session plan items")
-  .argument("<json>")
-  .action(async (jsonStr: string) => {
-    const sessionId = getSessionId(session.opts());
-    const plan = JSON.parse(jsonStr);
-    await linear.updateAgentSession(sessionId, { plan });
-    console.log("Session plan updated");
-  });
 
 session
   .command("add-url")
