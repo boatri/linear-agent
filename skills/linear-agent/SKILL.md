@@ -31,7 +31,7 @@ linear-agent issue comment LIN-123 "Implementation complete. See PR #42."
 
 ```bash
 # Add an external URL (e.g. PR link) to the session
-linear-agent session add-url "Pull Request" "https://github.com/org/repo/pull/42"
+linear-agent session add-url "https://github.com/org/repo/pull/42"
 
 # Ask the user a question through Linear (they'll see it in the Linear UI)
 linear-agent session activity elicitation "Which authentication provider should I use — OAuth2 or SAML?"
@@ -58,7 +58,7 @@ Do **not** use this for minor decisions you can make yourself. Prefer making rea
 
 1. Add the PR URL to the session:
    ```bash
-   linear-agent session add-url "Pull Request" "https://github.com/org/repo/pull/42"
+   linear-agent session add-url "https://github.com/org/repo/pull/42"
    ```
 2. Move the issue to review:
    ```bash

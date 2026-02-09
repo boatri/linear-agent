@@ -116,14 +116,14 @@ const session = program
 session
   .command('add-url')
   .description('Add external URL to session')
-  .argument('<label>')
   .argument('<url>')
-  .action(async (label: string, url: string) => {
+  .argument('[label]')
+  .action(async (url: string, label?: string) => {
     const sessionId = getSessionId(session.opts())
     await linear.updateAgentSession(sessionId, {
-      addedExternalUrls: [{ label, url }],
+      addedExternalUrls: [{ label: label ?? '', url }],
     })
-    console.log(`URL added: ${label} → ${url}`)
+    console.log(`URL added: ${url}`)
   })
 
 const ACTIVITY_TYPES = ['thought', 'action', 'error', 'response', 'elicitation'] as const

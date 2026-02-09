@@ -127,7 +127,6 @@ linear-agent issue move LIN-123 "In Review"
 linear-agent issue comment LIN-123 "Done. See PR #42."
 
 # Sessions (pass --id or set LINEAR_AGENT_SESSION_ID env var)
-linear-agent session --id $SESSION_ID add-url "Pull Request" "https://github.com/org/repo/pull/42"
-linear-agent session --id $SESSION_ID activity thought "Investigating root cause"
+linear-agent session --id $SESSION_ID add-url "https://github.com/org/repo/pull/42"
 linear-agent session --id $SESSION_ID activity elicitation "Which auth provider should I use?"
 ```
