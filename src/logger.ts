@@ -1,8 +1,3 @@
 import pino from "pino";
 
-export const logger = pino({
-  transport: {
-    target: "pino-pretty",
-    options: { destination: 2, colorize: false },
-  },
-});
+export const logger = pino();
