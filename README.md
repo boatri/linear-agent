@@ -47,14 +47,21 @@ Status mapping: `pending` → `pending`, `in_progress` → `inProgress`, `comple
 
 ## Install
 
+### Binary (Linux x86-64)
+
+```bash
+curl -fsSL https://github.com/boatri/linear-agent/releases/latest/download/linear-agent -o /usr/local/bin/linear-agent
+chmod +x /usr/local/bin/linear-agent
+```
+
+### From source
+
 ```bash
 git clone https://github.com/boatri/linear-agent.git
 cd linear-agent
 bun install
 bun link
 ```
-
-This registers `linear-agent` as a global command.
 
 ## Configuration
 
