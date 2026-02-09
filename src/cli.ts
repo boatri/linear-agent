@@ -147,6 +147,26 @@ session
     console.log(`Activity emitted: ${type}`);
   });
 
+const REPO = "boatri/linear-agent";
+
+program
+  .command("update")
+  .description("Update to the latest release")
+  .action(async () => {
+    const binPath = process.execPath;
+    const url = `https://github.com/${REPO}/releases/latest/download/linear-agent`;
+    console.log(`Downloading latest release from ${url}...`);
+    const resp = await fetch(url, { redirect: "follow" });
+    if (!resp.ok) {
+      console.error(`Error: Failed to download (${resp.status})`);
+      process.exit(1);
+    }
+    await Bun.write(binPath, resp);
+    const { chmodSync } = await import("fs");
+    chmodSync(binPath, 0o755);
+    console.log(`Updated ${binPath}`);
+  });
+
 program.parseAsync().catch((err) => {
   console.error(`Error: ${err.message ?? err}`);
   process.exit(1);
