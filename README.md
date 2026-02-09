@@ -43,7 +43,7 @@ Status mapping: `pending` → `pending`, `in_progress` → `inProgress`, `comple
 ## Prerequisites
 
 - [Bun](https://bun.sh) runtime (v1.0+)
-- A [Membrane](https://membrane.so) workspace with a Linear connection
+- [Membrane](https://getmembrane.com) workspace with a Linear connection
 
 ## Install
 
