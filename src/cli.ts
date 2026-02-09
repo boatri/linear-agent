@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 import { Command } from "commander";
 import { linear } from "./linear";
 import { Watcher } from "./claude/watcher";

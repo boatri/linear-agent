@@ -43,17 +43,26 @@ Status mapping: `pending` → `pending`, `in_progress` → `inProgress`, `comple
 ## Prerequisites
 
 - [Bun](https://bun.sh) runtime (v1.0+)
-- A [Linear](https://linear.app) account with an OAuth application
+- A [Membrane](https://membrane.so) workspace with a Linear connection
 
-## Setup
+## Install
 
 ```bash
+git clone https://github.com/boatri/linear-agent.git
+cd linear-agent
 bun install
+bun link
 ```
 
+This registers `linear-agent` as a global command.
+
+## Configuration
+
 Required environment variables:
-- `LINEAR_CLIENT_ID` — Linear OAuth app client ID
-- `LINEAR_CLIENT_SECRET` — Linear OAuth app client secret
+- `MEMBRANE_WORKSPACE_KEY` — Membrane workspace key
+- `MEMBRANE_WORKSPACE_SECRET` — Membrane workspace secret
+- `MEMBRANE_CUSTOMER_ID` — Membrane customer ID
+- `MEMBRANE_CONNECTION_SELECTOR` — Membrane connection name (default: `"linear"`)
 
 ## Usage
 
@@ -65,7 +74,7 @@ The session ID is shared between Claude Code and Linear — the same UUID is use
 SESSION_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
 
 # Start watcher before Claude, in background
-bun run src/cli.ts watch claude --session-id $SESSION_ID &
+linear-agent watch claude --session-id $SESSION_ID &
 WATCHER_PID=$!
 
 # Run Claude with the same session ID
@@ -88,14 +97,13 @@ The CLI provides direct commands for managing Linear issues and sessions:
 
 ```bash
 # Issues
-bun run src/cli.ts issue view LIN-123
-bun run src/cli.ts issue list --state "In Progress"
-bun run src/cli.ts issue move LIN-123 "In Review"
-bun run src/cli.ts issue comment LIN-123 "Done. See PR #42."
+linear-agent issue view LIN-123
+linear-agent issue list --state "In Progress"
+linear-agent issue move LIN-123 "In Review"
+linear-agent issue comment LIN-123 "Done. See PR #42."
 
 # Sessions (pass --id or set LINEAR_AGENT_SESSION_ID env var)
-bun run src/cli.ts session --id $SESSION_ID update-plan '[{"content":"Fix bug","status":"completed"}]'
-bun run src/cli.ts session --id $SESSION_ID add-url "Pull Request" "https://github.com/org/repo/pull/42"
-bun run src/cli.ts session --id $SESSION_ID activity thought "Investigating root cause"
-bun run src/cli.ts session --id $SESSION_ID activity elicitation "Which auth provider should I use?"
+linear-agent session --id $SESSION_ID add-url "Pull Request" "https://github.com/org/repo/pull/42"
+linear-agent session --id $SESSION_ID activity thought "Investigating root cause"
+linear-agent session --id $SESSION_ID activity elicitation "Which auth provider should I use?"
 ```

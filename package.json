@@ -4,11 +4,14 @@
   "description": "Stream Claude Code session activities to Linear in real-time",
   "license": "MIT",
   "type": "module",
+  "bin": {
+    "linear-agent": "src/cli.ts"
+  },
   "scripts": {
     "build": "tsgo",
     "lint": "oxlint",
     "format": "oxfmt --write src/",
-    "start": "bun run src/cli.ts",
+    "start": "linear-agent",
     "test": "bun test"
   },
   "dependencies": {
