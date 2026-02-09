@@ -20,9 +20,22 @@ jobs:
 
       - run: bun test
 
-      - run: bun build src/cli.ts --compile --target=bun-linux-x64 --outfile linear-agent
+      - name: Build binaries
+        run: |
+          bun build src/cli.ts --compile --target=bun-linux-x64 --outfile linear-agent-linux-x64
+          bun build src/cli.ts --compile --target=bun-linux-arm64 --outfile linear-agent-linux-arm64
+          bun build src/cli.ts --compile --target=bun-darwin-x64 --outfile linear-agent-darwin-x64
+          bun build src/cli.ts --compile --target=bun-darwin-arm64 --outfile linear-agent-darwin-arm64
+          bun build src/cli.ts --compile --target=bun-windows-x64 --outfile linear-agent-windows-x64.exe
 
       - name: Create release
-        run: gh release create ${{ github.ref_name }} linear-agent --title "${{ github.ref_name }}" --generate-notes
+        run: |
+          gh release create ${{ github.ref_name }} \
+            linear-agent-linux-x64 \
+            linear-agent-linux-arm64 \
+            linear-agent-darwin-x64 \
+            linear-agent-darwin-arm64 \
+            linear-agent-windows-x64.exe \
+            --title "${{ github.ref_name }}" --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

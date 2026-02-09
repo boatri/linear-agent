@@ -149,13 +149,21 @@ session
 
 const REPO = "boatri/linear-agent";
 
+function getBinaryName(): string {
+  const platform = process.platform === "win32" ? "windows" : process.platform;
+  const arch = process.arch === "arm64" ? "arm64" : "x64";
+  const ext = process.platform === "win32" ? ".exe" : "";
+  return `linear-agent-${platform}-${arch}${ext}`;
+}
+
 program
   .command("update")
   .description("Update to the latest release")
   .action(async () => {
     const binPath = process.execPath;
-    const url = `https://github.com/${REPO}/releases/latest/download/linear-agent`;
-    console.log(`Downloading latest release from ${url}...`);
+    const asset = getBinaryName();
+    const url = `https://github.com/${REPO}/releases/latest/download/${asset}`;
+    console.log(`Downloading ${asset}...`);
     const resp = await fetch(url, { redirect: "follow" });
     if (!resp.ok) {
       console.error(`Error: Failed to download (${resp.status})`);

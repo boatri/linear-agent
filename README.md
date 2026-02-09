@@ -47,12 +47,29 @@ Status mapping: `pending` → `pending`, `in_progress` → `inProgress`, `comple
 
 ## Install
 
-### Binary (Linux x86-64)
+### Binary
+
+Download the binary for your platform:
 
 ```bash
-curl -fsSL https://github.com/boatri/linear-agent/releases/latest/download/linear-agent -o /usr/local/bin/linear-agent
-chmod +x /usr/local/bin/linear-agent
+# macOS (Apple Silicon)
+curl -fsSL https://github.com/boatri/linear-agent/releases/latest/download/linear-agent-darwin-arm64 -o /usr/local/bin/linear-agent
+
+# macOS (Intel)
+curl -fsSL https://github.com/boatri/linear-agent/releases/latest/download/linear-agent-darwin-x64 -o /usr/local/bin/linear-agent
+
+# Linux (x86-64)
+curl -fsSL https://github.com/boatri/linear-agent/releases/latest/download/linear-agent-linux-x64 -o /usr/local/bin/linear-agent
+
+# Linux (ARM64)
+curl -fsSL https://github.com/boatri/linear-agent/releases/latest/download/linear-agent-linux-arm64 -o /usr/local/bin/linear-agent
 ```
+
+```bash
+sudo chmod +x /usr/local/bin/linear-agent
+```
+
+To update: `linear-agent update`
 
 ### From source
 
