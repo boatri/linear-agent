@@ -7,11 +7,21 @@ const schema = z.object({
   MEMBRANE_CONNECTION_SELECTOR: z.string().default("linear"),
 });
 
-const result = schema.safeParse(process.env);
-if (!result.success) {
-  const lines = result.error.issues.map((i) => `  ✖ ${i.path.join(".")}: ${i.message}`);
-  console.error("Invalid environment variables:\n" + lines.join("\n"));
-  process.exit(1);
-}
+type Env = z.infer<typeof schema>;
 
-export const env = result.data;
+let cached: Env;
+
+export const env: Env = new Proxy({} as Env, {
+  get(_, prop: string) {
+    if (!cached) {
+      const result = schema.safeParse(process.env);
+      if (!result.success) {
+        const lines = result.error.issues.map((i) => `  ✖ ${i.path.join(".")}: ${i.message}`);
+        console.error("Invalid environment variables:\n" + lines.join("\n"));
+        process.exit(1);
+      }
+      cached = result.data;
+    }
+    return cached[prop as keyof Env];
+  },
+});
