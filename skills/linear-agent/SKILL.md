@@ -6,15 +6,7 @@ allowed-tools: Bash(linear-agent *)
 
 # Linear Agent CLI
 
-Use this skill to interact with Linear issues and agent sessions via the `linear-agent` command.
-
-## Environment Variables
-
-These are pre-configured in your environment:
-- `MEMBRANE_WORKSPACE_KEY` — Membrane workspace key
-- `MEMBRANE_WORKSPACE_SECRET` — Membrane workspace secret
-- `MEMBRANE_CUSTOMER_ID` — Membrane customer ID
-- `LINEAR_AGENT_SESSION_ID` — Current agent session ID (for session commands). Can also be passed as `session --id <id>`.
+Use `linear-agent` to interact with Linear issues and agent sessions.
 
 ## Available Commands
 
@@ -40,9 +32,6 @@ linear-agent issue comment LIN-123 "Implementation complete. See PR #42."
 ```bash
 # Add an external URL (e.g. PR link) to the session
 linear-agent session add-url "Pull Request" "https://github.com/org/repo/pull/42"
-
-# Manually emit an activity
-linear-agent session activity thought "Investigating the root cause"
 
 # Ask the user a question through Linear (they'll see it in the Linear UI)
 linear-agent session activity elicitation "Which authentication provider should I use — OAuth2 or SAML?"
@@ -74,15 +63,4 @@ Do **not** use this for minor decisions you can make yourself. Prefer making rea
 2. Move the issue to review:
    ```bash
    linear-agent issue move LIN-123 "In Review"
-   ```
-
-### On Completion
-
-1. Move the issue to done:
-   ```bash
-   linear-agent issue move LIN-123 "Done"
-   ```
-2. Post a summary comment:
-   ```bash
-   linear-agent issue comment LIN-123 "Implementation complete. See PR #42."
    ```
