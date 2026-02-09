@@ -1,7 +1,7 @@
-import { LinearSdk, parseLinearError } from "@linear/sdk";
-import type { LinearRequest } from "@linear/sdk";
-import { env } from "./env";
-import { membrane } from "./membrane";
+import { LinearSdk, parseLinearError } from '@linear/sdk'
+import type { LinearRequest } from '@linear/sdk'
+import { env } from './env'
+import { membrane } from './membrane'
 
 export class LinearService extends LinearSdk {
   constructor() {
@@ -9,20 +9,20 @@ export class LinearService extends LinearSdk {
       doc: string,
       variables?: Variables,
     ): Promise<Response> => {
-      const { data, errors } = await membrane.connection(env.MEMBRANE_CONNECTION_SELECTOR).proxy.post("graphql", {
+      const { data, errors } = await membrane.connection(env.MEMBRANE_CONNECTION_SELECTOR).proxy.post('graphql', {
         query: doc,
         variables,
-      });
+      })
 
       if (errors && errors.length) {
-        throw parseLinearError(errors[0]);
+        throw parseLinearError(errors[0])
       }
 
-      return data as Response;
-    };
+      return data as Response
+    }
 
-    super(request);
+    super(request)
   }
 }
 
-export const linear = new LinearService();
+export const linear = new LinearService()
