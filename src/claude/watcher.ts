@@ -173,7 +173,6 @@ export class Watcher {
 
     if (!data.endsWith("\n")) {
       file.lineBuffer = lines.pop()!;
-      file.byteOffset -= Buffer.byteLength(file.lineBuffer);
     }
 
     for (const line of lines) {
@@ -222,7 +221,7 @@ export class Watcher {
     for (const file of this.files.values()) {
       if (file.linesSinceSave > 0 || file.lineCount > 0) {
         saveCursor(file.path, {
-          byteOffset: file.byteOffset,
+          byteOffset: file.byteOffset - Buffer.byteLength(file.lineBuffer),
           lineCount: file.lineCount,
           lastUuid: file.lastUuid,
         });
