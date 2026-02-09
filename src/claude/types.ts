@@ -40,7 +40,9 @@ export interface AssistantEntry extends EntryBase {
     id: string
     model: string
   }
-  requestId: string
+  requestId?: string
+  error?: string
+  isApiErrorMessage?: boolean
 }
 
 export interface UserEntry extends EntryBase {

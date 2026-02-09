@@ -53,6 +53,17 @@ export class ActivityEmitter {
   }
 
   private async processAssistant(entry: AssistantEntry, client: LinearSdk): Promise<void> {
+    if (entry.isApiErrorMessage) {
+      const text = entry.message.content
+        .filter((b): b is TextBlock => b.type === 'text')
+        .map((b) => b.text)
+        .join(' ')
+      if (text) {
+        await this.emit(client, { type: 'error', body: text })
+      }
+      return
+    }
+
     // Each assistant entry has a single-element content array
     const block = entry.message.content[0]
     if (!block) return

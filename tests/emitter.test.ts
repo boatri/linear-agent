@@ -584,6 +584,61 @@ describe("ActivityEmitter", () => {
     });
   });
 
+  describe("API error messages", () => {
+    test("rate limit error emits error activity", async () => {
+      const { client, activities } = mockClient();
+      const emitter = new ActivityEmitter(SESSION);
+
+      await emitter.process(
+        {
+          ...BASE,
+          type: "assistant",
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text: "You've hit your limit · resets 9pm (Europe/Kiev)" }],
+            id: "synthetic-1",
+            model: "<synthetic>",
+          },
+          error: "rate_limit",
+          isApiErrorMessage: true,
+        } as AssistantEntry,
+        client,
+      );
+
+      expect(activities).toHaveLength(1);
+      expect(activities[0]).toEqual({
+        agentSessionId: SESSION,
+        content: {
+          type: "error",
+          body: "You've hit your limit · resets 9pm (Europe/Kiev)",
+        },
+      });
+    });
+
+    test("API error with empty content emits nothing", async () => {
+      const { client, activities } = mockClient();
+      const emitter = new ActivityEmitter(SESSION);
+
+      await emitter.process(
+        {
+          ...BASE,
+          type: "assistant",
+          message: {
+            role: "assistant",
+            content: [],
+            id: "synthetic-2",
+            model: "<synthetic>",
+          },
+          error: "rate_limit",
+          isApiErrorMessage: true,
+        } as AssistantEntry,
+        client,
+      );
+
+      expect(activities).toHaveLength(0);
+    });
+  });
+
   describe("user entry processing", () => {
     test("user text blocks are skipped, only tool_results processed", async () => {
       const { client, activities } = mockClient();
