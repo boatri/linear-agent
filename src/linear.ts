@@ -1,8 +1,7 @@
 import { LinearSdk, parseLinearError } from "@linear/sdk";
 import type { LinearRequest } from "@linear/sdk";
+import { env } from "./env";
 import { membrane } from "./membrane";
-
-const connectionSelector = process.env.MEMBRANE_CONNECTION_SELECTOR ?? "linear";
 
 export class LinearService extends LinearSdk {
   constructor() {
@@ -10,7 +9,7 @@ export class LinearService extends LinearSdk {
       doc: string,
       variables?: Variables,
     ): Promise<Response> => {
-      const { data, errors } = await membrane.connection(connectionSelector).proxy.post("graphql", {
+      const { data, errors } = await membrane.connection(env.MEMBRANE_CONNECTION_SELECTOR).proxy.post("graphql", {
         query: doc,
         variables,
       });
