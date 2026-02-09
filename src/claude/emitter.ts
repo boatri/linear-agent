@@ -1,4 +1,4 @@
-import type { LinearClient } from "@linear/sdk";
+import type { LinearSdk } from "@linear/sdk";
 import type {
   JournalEntry,
   AssistantEntry,
@@ -34,7 +34,7 @@ export class ActivityEmitter {
     this.rateLimiter = new RateLimiter({ perSecond: 2, burst: 5 });
   }
 
-  async process(entry: JournalEntry, client: LinearClient): Promise<void> {
+  async process(entry: JournalEntry, client: LinearSdk): Promise<void> {
     switch (entry.type) {
       case "assistant":
         await this.processAssistant(entry, client);
@@ -52,7 +52,7 @@ export class ActivityEmitter {
     }
   }
 
-  private async processAssistant(entry: AssistantEntry, client: LinearClient): Promise<void> {
+  private async processAssistant(entry: AssistantEntry, client: LinearSdk): Promise<void> {
     // Each assistant entry has a single-element content array
     const block = entry.message.content[0];
     if (!block) return;
@@ -70,7 +70,7 @@ export class ActivityEmitter {
     }
   }
 
-  private async processUser(entry: UserEntry, client: LinearClient): Promise<void> {
+  private async processUser(entry: UserEntry, client: LinearSdk): Promise<void> {
     const content = entry.message.content;
 
     for (const block of content) {
@@ -81,7 +81,7 @@ export class ActivityEmitter {
     }
   }
 
-  private async processSummary(entry: SummaryEntry, client: LinearClient): Promise<void> {
+  private async processSummary(entry: SummaryEntry, client: LinearSdk): Promise<void> {
     await this.emit(client, {
       type: "thought",
       body: `Context: ${truncate(entry.summary, 2000)}`,
@@ -90,7 +90,7 @@ export class ActivityEmitter {
 
   private async processQueueOperation(
     entry: QueueOperationEntry,
-    client: LinearClient,
+    client: LinearSdk,
   ): Promise<void> {
     if (entry.operation !== "enqueue" || !entry.content) return;
 
@@ -102,7 +102,7 @@ export class ActivityEmitter {
     await this.emit(client, { type, body: summary });
   }
 
-  private async emitThinking(block: ThinkingBlock, client: LinearClient): Promise<void> {
+  private async emitThinking(block: ThinkingBlock, client: LinearSdk): Promise<void> {
     await this.emit(
       client,
       { type: "thought", body: truncate(block.thinking, 2000) },
@@ -110,13 +110,13 @@ export class ActivityEmitter {
     );
   }
 
-  private async emitText(block: TextBlock, client: LinearClient): Promise<void> {
+  private async emitText(block: TextBlock, client: LinearSdk): Promise<void> {
     const text = block.text.trim();
     if (!text) return;
     await this.emit(client, { type: "response", body: truncate(text, MAX_BODY_LENGTH) });
   }
 
-  private async emitToolUse(block: ToolUseBlock, client: LinearClient): Promise<void> {
+  private async emitToolUse(block: ToolUseBlock, client: LinearSdk): Promise<void> {
     this.pendingToolUses.set(block.id, { name: block.name, input: block.input });
 
     const mapper = TOOL_MAPPING[block.name];
@@ -133,7 +133,7 @@ export class ActivityEmitter {
   private async emitToolResult(
     block: ToolResultBlock,
     entry: UserEntry,
-    client: LinearClient,
+    client: LinearSdk,
   ): Promise<void> {
     const pending = this.pendingToolUses.get(block.tool_use_id);
     if (!pending) return;
@@ -176,7 +176,7 @@ export class ActivityEmitter {
     await this.emit(client, { type: "action", ...mapped });
   }
 
-  private async pushPlan(client: LinearClient): Promise<void> {
+  private async pushPlan(client: LinearSdk): Promise<void> {
     if (!this.planTracker.hasPlan()) return;
     await this.rateLimiter.acquire();
     try {
@@ -189,7 +189,7 @@ export class ActivityEmitter {
   }
 
   private async emit(
-    client: LinearClient,
+    client: LinearSdk,
     content: { type: string; body?: string; action?: string; parameter?: string; result?: string },
     ephemeral?: boolean,
   ): Promise<void> {

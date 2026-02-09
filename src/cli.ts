@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { withClient, createClient } from "./client";
+import { linear } from "./linear";
 import { Watcher } from "./claude/watcher";
 
 const program = new Command()
@@ -15,8 +15,7 @@ watch
   .description("Tail a Claude Code session JSONL and emit activities to Linear")
   .requiredOption("--session-id <id>", "Linear agent session ID")
   .action(async (opts: { sessionId: string }) => {
-    const client = await createClient();
-    const watcher = new Watcher({ sessionId: opts.sessionId }, client);
+    const watcher = new Watcher({ sessionId: opts.sessionId }, linear);
     await watcher.run();
   });
 
@@ -29,19 +28,17 @@ issue
   .description("View issue details")
   .argument("<issue-id>")
   .action(async (issueId: string) => {
-    await withClient(async (client) => {
-      const issue = await client.issue(issueId);
-      const state = await issue.state;
-      const assignee = await issue.assignee;
+    const issue = await linear.issue(issueId);
+    const state = await issue.state;
+    const assignee = await issue.assignee;
 
-      console.log(`${issue.identifier}: ${issue.title}`);
-      console.log(`State: ${state?.name ?? "Unknown"}`);
-      console.log(`Assignee: ${assignee?.name ?? "Unassigned"}`);
-      console.log(`Priority: ${issue.priority}`);
-      if (issue.description) {
-        console.log(`\nDescription:\n${issue.description}`);
-      }
-    });
+    console.log(`${issue.identifier}: ${issue.title}`);
+    console.log(`State: ${state?.name ?? "Unknown"}`);
+    console.log(`Assignee: ${assignee?.name ?? "Unassigned"}`);
+    console.log(`Priority: ${issue.priority}`);
+    if (issue.description) {
+      console.log(`\nDescription:\n${issue.description}`);
+    }
   });
 
 issue
@@ -49,22 +46,20 @@ issue
   .description("List issues")
   .option("--state <name>", "Filter by workflow state")
   .action(async (opts: { state?: string }) => {
-    await withClient(async (client) => {
-      const issues = await client.issues({
-        filter: opts.state ? { state: { name: { eq: opts.state } } } : undefined,
-        first: 50,
-      });
-
-      if (issues.nodes.length === 0) {
-        console.log("No issues found.");
-        return;
-      }
-
-      for (const issue of issues.nodes) {
-        const state = await issue.state;
-        console.log(`${issue.identifier}\t${state?.name ?? "?"}\t${issue.title}`);
-      }
+    const issues = await linear.issues({
+      filter: opts.state ? { state: { name: { eq: opts.state } } } : undefined,
+      first: 50,
     });
+
+    if (issues.nodes.length === 0) {
+      console.log("No issues found.");
+      return;
+    }
+
+    for (const issue of issues.nodes) {
+      const state = await issue.state;
+      console.log(`${issue.identifier}\t${state?.name ?? "?"}\t${issue.title}`);
+    }
   });
 
 issue
@@ -73,25 +68,23 @@ issue
   .argument("<issue-id>")
   .argument("<state-name>")
   .action(async (issueId: string, stateName: string) => {
-    await withClient(async (client) => {
-      const issue = await client.issue(issueId);
-      const team = await issue.team;
-      if (!team) {
-        console.error("Error: Could not resolve issue's team");
-        process.exit(1);
-      }
+    const issue = await linear.issue(issueId);
+    const team = await issue.team;
+    if (!team) {
+      console.error("Error: Could not resolve issue's team");
+      process.exit(1);
+    }
 
-      const states = await team.states();
-      const target = states.nodes.find((s) => s.name.toLowerCase() === stateName.toLowerCase());
-      if (!target) {
-        const available = states.nodes.map((s) => s.name).join(", ");
-        console.error(`Error: State "${stateName}" not found. Available: ${available}`);
-        process.exit(1);
-      }
+    const states = await team.states();
+    const target = states.nodes.find((s) => s.name.toLowerCase() === stateName.toLowerCase());
+    if (!target) {
+      const available = states.nodes.map((s) => s.name).join(", ");
+      console.error(`Error: State "${stateName}" not found. Available: ${available}`);
+      process.exit(1);
+    }
 
-      await client.updateIssue(issue.id, { stateId: target.id });
-      console.log(`Moved ${issue.identifier} to "${target.name}"`);
-    });
+    await linear.updateIssue(issue.id, { stateId: target.id });
+    console.log(`Moved ${issue.identifier} to "${target.name}"`);
   });
 
 issue
@@ -100,11 +93,9 @@ issue
   .argument("<issue-id>")
   .argument("<body>")
   .action(async (issueId: string, body: string) => {
-    await withClient(async (client) => {
-      const issue = await client.issue(issueId);
-      await client.createComment({ issueId: issue.id, body });
-      console.log(`Comment posted on ${issue.identifier}`);
-    });
+    const issue = await linear.issue(issueId);
+    await linear.createComment({ issueId: issue.id, body });
+    console.log(`Comment posted on ${issue.identifier}`);
   });
 
 function getSessionId(opts: { id?: string }): string {
@@ -128,9 +119,7 @@ session
   .action(async (jsonStr: string) => {
     const sessionId = getSessionId(session.opts());
     const plan = JSON.parse(jsonStr);
-    await withClient(async (client) => {
-      await client.updateAgentSession(sessionId, { plan });
-    });
+    await linear.updateAgentSession(sessionId, { plan });
     console.log("Session plan updated");
   });
 
@@ -141,10 +130,8 @@ session
   .argument("<url>")
   .action(async (label: string, url: string) => {
     const sessionId = getSessionId(session.opts());
-    await withClient(async (client) => {
-      await client.updateAgentSession(sessionId, {
-        addedExternalUrls: [{ label, url }],
-      });
+    await linear.updateAgentSession(sessionId, {
+      addedExternalUrls: [{ label, url }],
     });
     console.log(`URL added: ${label} → ${url}`);
   });
@@ -163,11 +150,9 @@ session
     }
 
     const sessionId = getSessionId(session.opts());
-    await withClient(async (client) => {
-      await client.createAgentActivity({
-        agentSessionId: sessionId,
-        content: { type, body },
-      });
+    await linear.createAgentActivity({
+      agentSessionId: sessionId,
+      content: { type, body },
     });
     console.log(`Activity emitted: ${type}`);
   });

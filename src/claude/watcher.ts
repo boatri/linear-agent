@@ -1,4 +1,4 @@
-import type { LinearClient } from "@linear/sdk";
+import type { LinearSdk } from "@linear/sdk";
 import type { JournalEntry, WatcherConfig } from "./types";
 import { findSessionFile, listProjectSessions } from "./session-finder";
 import { loadCursor, saveCursor } from "./cursor";
@@ -24,7 +24,7 @@ interface TailedFile {
 
 export class Watcher {
   private readonly config: WatcherConfig;
-  private readonly client: LinearClient;
+  private readonly client: LinearSdk;
   private readonly emitter: ActivityEmitter;
   private stopping = false;
   private lastSaveTime = Date.now();
@@ -36,7 +36,7 @@ export class Watcher {
 
   private readonly checkedFiles = new Set<string>();
 
-  constructor(config: WatcherConfig, client: LinearClient) {
+  constructor(config: WatcherConfig, client: LinearSdk) {
     this.config = config;
     this.client = client;
     this.emitter = new ActivityEmitter(config.sessionId);
