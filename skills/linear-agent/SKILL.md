@@ -16,6 +16,8 @@ At the same time, there are still things that you need to do to make the user ex
 linear-agent issue view LIN-123
 ```
 
+Use this to check the latest state of the issue — including comments from users and any previous agent responses. Images are downloaded locally by default. This is especially useful at the start of a task to understand the full context, or when you want to see if a user has left new comments or instructions outside of the current session.
+
 ## Asking for Clarification
 
 If you are blocked on a decision that prevents you from making meaningful progress, use `elicitation` to ask the user through Linear:
