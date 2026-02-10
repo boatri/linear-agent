@@ -139,6 +139,17 @@ session
     console.log(`Activity emitted: ${type}`)
   })
 
+program
+  .command('graphql')
+  .description('Execute a raw GraphQL query')
+  .argument('<query>')
+  .option('-v, --variables <json>', 'Variables as JSON string')
+  .action(async (query: string, opts: { variables?: string }) => {
+    const variables = opts.variables ? JSON.parse(opts.variables) : undefined
+    const result = await linear.query(query, variables)
+    console.log(JSON.stringify(result, null, 2))
+  })
+
 const REPO = 'boatri/linear-agent'
 
 function getBinaryName(): string {
