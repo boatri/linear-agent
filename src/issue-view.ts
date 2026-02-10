@@ -13,10 +13,6 @@ import { visit } from 'unist-util-visit'
 import type { Image, Link, Root } from 'mdast'
 import { linear } from './linear'
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 type IssueRef = {
   identifier: string
   title: string
@@ -54,10 +50,6 @@ type IssueDetails = {
   comments?: Comment[]
   attachments?: Attachment[]
 }
-
-// ---------------------------------------------------------------------------
-// Data fetching
-// ---------------------------------------------------------------------------
 
 const ISSUE_QUERY = `
   query GetIssueDetails($id: String!) {
@@ -104,10 +96,6 @@ async function fetchIssueDetails(issueId: string): Promise<IssueDetails> {
     attachments: data.issue.attachments?.nodes ?? [],
   }
 }
-
-// ---------------------------------------------------------------------------
-// Main view function
-// ---------------------------------------------------------------------------
 
 export async function viewIssue(issueId: string, opts: { download?: boolean } = {}): Promise<void> {
   const shouldDownload = opts.download !== false
@@ -180,10 +168,6 @@ export async function viewIssue(issueId: string, opts: { download?: boolean } = 
   }
 }
 
-// ---------------------------------------------------------------------------
-// Formatting helpers
-// ---------------------------------------------------------------------------
-
 function formatRelativeTime(dateString: string): string {
   const now = new Date()
   const date = new Date(dateString)
@@ -247,7 +231,6 @@ function formatAttachmentsAsMarkdown(
   return md
 }
 
-/** Non-terminal: markdown bullet list with threading. */
 function formatCommentsAsMarkdown(comments: Comment[]): string {
   const rootComments = comments.filter((c) => !c.parent)
   const replies = comments.filter((c) => c.parent)
@@ -259,7 +242,6 @@ function formatCommentsAsMarkdown(comments: Comment[]): string {
     repliesMap.get(pid)!.push(reply)
   }
 
-  // Newest first
   const sorted = rootComments.slice().reverse()
   let md = ''
 
@@ -279,7 +261,6 @@ function formatCommentsAsMarkdown(comments: Comment[]): string {
   return md
 }
 
-/** Terminal: styled comment headers + rendered markdown bodies. */
 function captureCommentsForTerminal(comments: Comment[], width: number, md: Marked): string[] {
   const rootComments = comments.filter((c) => !c.parent)
   const replies = comments.filter((c) => c.parent)
@@ -293,7 +274,6 @@ function captureCommentsForTerminal(comments: Comment[], width: number, md: Mark
 
   const sorted = rootComments.slice().reverse()
   const lines: string[] = []
-
   for (const root of sorted) {
     const threadReplies = repliesMap.get(root.id) ?? []
     threadReplies.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
@@ -314,10 +294,6 @@ function captureCommentsForTerminal(comments: Comment[], width: number, md: Mark
 
   return lines
 }
-
-// ---------------------------------------------------------------------------
-// Download logic
-// ---------------------------------------------------------------------------
 
 const IMAGE_CACHE_DIR = join(tmpdir(), 'linear-agent-images')
 const ATTACHMENT_CACHE_DIR = join(tmpdir(), 'linear-agent-attachments')

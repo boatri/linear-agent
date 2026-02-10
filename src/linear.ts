@@ -21,12 +21,10 @@ export class LinearService extends LinearSdk {
     super(graphqlRequest as LinearRequest)
   }
 
-  /** Execute a raw GraphQL query through the Membrane proxy. */
   query<T = unknown>(doc: string, variables?: Record<string, unknown>): Promise<T> {
     return graphqlRequest<T>(doc, variables)
   }
 
-  /** Download a file through the Membrane proxy (handles Linear auth automatically). */
   async download(url: string): Promise<Buffer> {
     const proxyPath = `/connections/${env.MEMBRANE_CONNECTION_SELECTOR}/proxy/${url}`
     const result = await (membrane as any).get(proxyPath, undefined, { responseType: 'arraybuffer' })
