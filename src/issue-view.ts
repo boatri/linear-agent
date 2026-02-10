@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { Marked } from 'marked'
+// @ts-expect-error no types available
 import { markedTerminal } from 'marked-terminal'
 import chalk from 'chalk'
 import sanitize from 'sanitize-filename'
