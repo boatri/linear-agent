@@ -99,14 +99,14 @@ describe("ActivityEmitter", () => {
       });
     });
 
-    test("truncates long thinking to 2000 chars", async () => {
+    test("passes full thinking content", async () => {
       const { client, activities } = mockClient();
       const emitter = new ActivityEmitter(SESSION);
 
       const long = "x".repeat(3000);
       await emitter.process(assistant({ type: "thinking", thinking: long }), client);
 
-      expect((activities[0].content as any).body.length).toBe(2000);
+      expect((activities[0].content as any).body).toBe(long);
     });
   });
 
@@ -485,7 +485,7 @@ describe("ActivityEmitter", () => {
   });
 
   describe("summary entries", () => {
-    test("emits thought with truncated summary", async () => {
+    test("emits thought with full summary", async () => {
       const { client, activities } = mockClient();
       const emitter = new ActivityEmitter(SESSION);
 

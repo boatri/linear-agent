@@ -1,16 +1,11 @@
-export function truncate(str: string, max: number): string {
-  if (str.length <= max) return str
-  return str.slice(0, max - 3) + '...'
-}
-
 export const TOOL_MAPPING: Record<
   string,
   (input: Record<string, unknown>, result?: string) => { action: string; parameter: string; result?: string }
 > = {
   Bash: (input, result) => ({
     action: 'Ran command',
-    parameter: truncate(String(input.command ?? ''), 200),
-    ...(result ? { result: truncate(result, 500) } : {}),
+    parameter: String(input.command ?? ''),
+    ...(result ? { result } : {}),
   }),
   Edit: (input) => ({
     action: 'Edited file',
@@ -34,20 +29,20 @@ export const TOOL_MAPPING: Record<
   }),
   Task: (input) => ({
     action: 'Delegated subtask',
-    parameter: truncate(String(input.description ?? ''), 200),
+    parameter: String(input.description ?? ''),
   }),
   WebFetch: (input, result) => ({
     action: 'Fetched URL',
     parameter: String(input.url ?? ''),
-    ...(result ? { result: truncate(result, 500) } : {}),
+    ...(result ? { result } : {}),
   }),
   WebSearch: (input) => ({
     action: 'Web search',
-    parameter: truncate(String(input.query ?? ''), 200),
+    parameter: String(input.query ?? ''),
   }),
   TaskCreate: (input) => ({
     action: 'Created task',
-    parameter: truncate(String(input.subject ?? ''), 200),
+    parameter: String(input.subject ?? ''),
   }),
   TaskUpdate: (input) => ({
     action: 'Updated task',
@@ -59,7 +54,7 @@ export const TOOL_MAPPING: Record<
   }),
   AskUserQuestion: (input) => ({
     action: 'Asked user',
-    parameter: truncate(String((input.questions as Array<{ question: string }> | undefined)?.[0]?.question ?? ''), 200),
+    parameter: String((input.questions as Array<{ question: string }> | undefined)?.[0]?.question ?? ''),
   }),
   NotebookEdit: (input) => ({
     action: 'Edited notebook',

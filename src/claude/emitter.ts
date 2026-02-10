@@ -10,14 +10,12 @@ import type {
   ToolUseBlock,
   ToolResultBlock,
 } from './types'
-import { TOOL_MAPPING, truncate } from './tool-mapping'
+import { TOOL_MAPPING } from './tool-mapping'
 import { RateLimiter } from '../rate-limiter'
 import { PlanTracker } from './plan-tracker'
 import { logger as rootLogger } from '../logger'
 
 const logger = rootLogger.child({ module: 'emitter' })
-const MAX_BODY_LENGTH = 10000
-
 interface PendingTool {
   name: string
   input: Record<string, unknown>
@@ -95,7 +93,7 @@ export class ActivityEmitter {
   private async processSummary(entry: SummaryEntry, client: LinearSdk): Promise<void> {
     await this.emit(client, {
       type: 'thought',
-      body: `Context: ${truncate(entry.summary, 2000)}`,
+      body: `Context: ${entry.summary}`,
     })
   }
 
@@ -111,13 +109,13 @@ export class ActivityEmitter {
   }
 
   private async emitThinking(block: ThinkingBlock, client: LinearSdk): Promise<void> {
-    await this.emit(client, { type: 'thought', body: truncate(block.thinking, 2000) }, true)
+    await this.emit(client, { type: 'thought', body: block.thinking }, true)
   }
 
   private async emitText(block: TextBlock, client: LinearSdk): Promise<void> {
     const text = block.text.trim()
     if (!text) return
-    await this.emit(client, { type: 'response', body: truncate(text, MAX_BODY_LENGTH) })
+    await this.emit(client, { type: 'response', body: text })
   }
 
   private async emitToolUse(block: ToolUseBlock, client: LinearSdk): Promise<void> {
@@ -161,7 +159,7 @@ export class ActivityEmitter {
     if (block.is_error) {
       await this.emit(client, {
         type: 'error',
-        body: truncate(`**${pending.name}** failed: ${resultText}`, 2000),
+        body: `**${pending.name}** failed: ${resultText}`,
       })
       return
     }
