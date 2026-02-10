@@ -28,18 +28,10 @@ issue
   .command('view')
   .description('View issue details')
   .argument('<issue-id>')
-  .action(async (issueId: string) => {
-    const issue = await linear.issue(issueId)
-    const state = await issue.state
-    const assignee = await issue.assignee
-
-    console.log(`${issue.identifier}: ${issue.title}`)
-    console.log(`State: ${state?.name ?? 'Unknown'}`)
-    console.log(`Assignee: ${assignee?.name ?? 'Unassigned'}`)
-    console.log(`Priority: ${issue.priority}`)
-    if (issue.description) {
-      console.log(`\nDescription:\n${issue.description}`)
-    }
+  .option('--no-download', 'Keep remote URLs instead of downloading files')
+  .action(async (issueId: string, opts: { download?: boolean }) => {
+    const { viewIssue } = await import('./issue-view')
+    await viewIssue(issueId, opts)
   })
 
 issue
