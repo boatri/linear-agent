@@ -137,7 +137,20 @@ export class ActivityEmitter {
     if (!pending) return
     this.pendingToolUses.delete(block.tool_use_id)
 
-    const resultText = typeof block.content === 'string' ? block.content : block.content.map((c) => c.text).join('\n')
+    const rawContent = typeof block.content === 'string' ? block.content : block.content.map((c) => c.text).join('\n')
+
+    if (rawContent.includes('<tool_use_error>')) {
+      const mapper = TOOL_MAPPING[pending.name]
+      const parameter = mapper?.(pending.input)?.parameter
+      const context = parameter ? ` \`${parameter}\`` : ''
+      await this.emit(client, {
+        type: 'error',
+        body: `**${pending.name}**${context} failed`,
+      })
+      return
+    }
+
+    const resultText = rawContent
 
     if (!block.is_error) {
       switch (pending.name) {
@@ -157,9 +170,12 @@ export class ActivityEmitter {
     }
 
     if (block.is_error) {
+      const mapper = TOOL_MAPPING[pending.name]
+      const parameter = mapper?.(pending.input)?.parameter
+      const context = parameter ? ` \`${parameter}\`` : ''
       await this.emit(client, {
         type: 'error',
-        body: `**${pending.name}** failed: ${resultText}`,
+        body: `**${pending.name}**${context} failed:\n${resultText}`,
       })
       return
     }
