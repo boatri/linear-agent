@@ -1,69 +1,61 @@
-export const TOOL_MAPPING: Record<
-  string,
-  (input: Record<string, unknown>, result?: string) => { action: string; parameter: string; result?: string }
-> = {
-  Bash: (input, result) => ({
-    action: 'Ran command',
-    parameter: String(input.command ?? ''),
-    ...(result ? { result } : {}),
-  }),
-  Edit: (input) => ({
-    action: 'Edited file',
-    parameter: String(input.file_path ?? ''),
-  }),
-  Write: (input) => ({
-    action: 'Created file',
-    parameter: String(input.file_path ?? ''),
-  }),
-  Read: (input) => ({
-    action: 'Read file',
-    parameter: String(input.file_path ?? ''),
-  }),
+export interface ToolMapped {
+  action: string
+  parameter: string
+  result?: string
+}
+
+type ToolMapper = (input: Record<string, unknown>, result?: string) => ToolMapped
+
+function withResult(base: { action: string; parameter: string }, result?: string): ToolMapped {
+  if (result) return { ...base, result }
+  return base
+}
+
+function safeString(value: unknown): string {
+  return String(value ?? '')
+}
+
+export const TOOL_MAPPING: Record<string, ToolMapper> = {
+  Bash: (input, result) => withResult({ action: 'Ran command', parameter: safeString(input.command) }, result),
+  Edit: (input) => {
+    const oldStr = safeString(input.old_string)
+    const newStr = safeString(input.new_string)
+    const diff = oldStr || newStr
+      ? '```diff\n' + [
+          ...oldStr.split('\n').map((l) => `- ${l}`),
+          ...newStr.split('\n').map((l) => `+ ${l}`),
+        ].join('\n') + '\n```'
+      : undefined
+    return withResult({ action: 'Edited file', parameter: safeString(input.file_path) }, diff)
+  },
+  Write: (input) => ({ action: 'Created file', parameter: safeString(input.file_path) }),
+  Read: (input) => ({ action: 'Read file', parameter: safeString(input.file_path) }),
   Glob: (input, result) => {
-    let parameter = String(input.pattern ?? '')
+    let parameter = safeString(input.pattern)
     if (input.path) parameter += ` in ${input.path}`
-    return { action: 'Searched files', parameter, ...(result ? { result } : {}) }
+    return withResult({ action: 'Searched files', parameter }, result)
   },
   Grep: (input, result) => {
-    let parameter = String(input.pattern ?? '')
+    let parameter = safeString(input.pattern)
     if (input.path) parameter += ` in ${input.path}`
     if (input.glob) parameter += ` (${input.glob})`
-    return { action: 'Searched for pattern', parameter, ...(result ? { result } : {}) }
+    return withResult({ action: 'Searched for pattern', parameter }, result)
   },
   Task: (input, result) => {
-    const desc = String(input.description ?? '')
+    const desc = safeString(input.description)
     if (!result) return { action: 'Delegated subtask', parameter: desc }
 
     const responseText = result.replace(/agentId:.*\n?/g, '').replace(/<usage>[\s\S]*?<\/usage>/g, '').trim()
-    return { action: 'Delegated subtask', parameter: desc, ...(responseText ? { result: responseText } : {}) }
+    return withResult({ action: 'Delegated subtask', parameter: desc }, responseText || undefined)
   },
-  WebFetch: (input, result) => ({
-    action: 'Fetched URL',
-    parameter: String(input.url ?? ''),
-    ...(result ? { result } : {}),
-  }),
-  WebSearch: (input) => ({
-    action: 'Web search',
-    parameter: String(input.query ?? ''),
-  }),
-  TaskCreate: (input) => ({
-    action: 'Created task',
-    parameter: String(input.subject ?? ''),
-  }),
-  TaskUpdate: (input) => ({
-    action: 'Updated task',
-    parameter: String(input.taskId ?? ''),
-  }),
-  Skill: (input) => ({
-    action: 'Invoked skill',
-    parameter: String(input.skill ?? ''),
-  }),
+  WebFetch: (input, result) => withResult({ action: 'Fetched URL', parameter: safeString(input.url) }, result),
+  WebSearch: (input) => ({ action: 'Web search', parameter: safeString(input.query) }),
+  TaskCreate: (input) => ({ action: 'Created task', parameter: safeString(input.subject) }),
+  TaskUpdate: (input) => ({ action: 'Updated task', parameter: safeString(input.taskId) }),
+  Skill: (input) => ({ action: 'Invoked skill', parameter: safeString(input.skill) }),
   AskUserQuestion: (input) => ({
     action: 'Asked user',
-    parameter: String((input.questions as Array<{ question: string }> | undefined)?.[0]?.question ?? ''),
+    parameter: safeString((input.questions as Array<{ question: string }> | undefined)?.[0]?.question),
   }),
-  NotebookEdit: (input) => ({
-    action: 'Edited notebook',
-    parameter: String(input.notebook_path ?? ''),
-  }),
+  NotebookEdit: (input) => ({ action: 'Edited notebook', parameter: safeString(input.notebook_path) }),
 }

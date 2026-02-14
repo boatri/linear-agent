@@ -10,12 +10,14 @@ import type {
   ToolUseBlock,
   ToolResultBlock,
 } from './types'
+import type { ToolMapped } from './tool-mapping'
 import { TOOL_MAPPING } from './tool-mapping'
 import { RateLimiter } from '../rate-limiter'
 import { PlanTracker } from './plan-tracker'
 import { logger as rootLogger } from '../logger'
 
 const logger = rootLogger.child({ module: 'emitter' })
+
 interface PendingTool {
   name: string
   input: Record<string, unknown>
@@ -80,21 +82,16 @@ export class ActivityEmitter {
   }
 
   private async processUser(entry: UserEntry, client: LinearSdk): Promise<void> {
-    const content = entry.message.content
-
-    for (const block of content) {
+    for (const block of entry.message.content) {
       if (block.type === 'tool_result') {
-        await this.emitToolResult(block, entry, client)
+        await this.emitToolResult(block, client)
       }
       // Skip user text (prompts) — Linear shows these natively
     }
   }
 
   private async processSummary(entry: SummaryEntry, client: LinearSdk): Promise<void> {
-    await this.emit(client, {
-      type: 'thought',
-      body: `Context: ${entry.summary}`,
-    })
+    await this.emit(client, { type: 'thought', body: `Context: ${entry.summary}` })
   }
 
   private async processQueueOperation(entry: QueueOperationEntry, client: LinearSdk): Promise<void> {
@@ -125,66 +122,68 @@ export class ActivityEmitter {
     if (!mapper) return
 
     const mapped = mapper(block.input)
-    await this.emit(
-      client,
-      { type: 'action', ...mapped },
-      true, // ephemeral — the completed action will follow
-    )
+
+    await this.emit(client, { type: 'action', ...mapped }, true) // ephemeral — the completed action will follow
   }
 
-  private async emitToolResult(block: ToolResultBlock, entry: UserEntry, client: LinearSdk): Promise<void> {
+  private async emitToolResult(block: ToolResultBlock, client: LinearSdk): Promise<void> {
     const pending = this.pendingToolUses.get(block.tool_use_id)
     if (!pending) return
     this.pendingToolUses.delete(block.tool_use_id)
 
-    const rawContent = typeof block.content === 'string' ? block.content : block.content.map((c) => c.text).join('\n')
+    const rawContent = typeof block.content === 'string'
+      ? block.content
+      : block.content.map((c) => c.text).join('\n')
+
+    const mapper = TOOL_MAPPING[pending.name]
+    const mapped = mapper?.(pending.input, rawContent)
 
     if (rawContent.includes('<tool_use_error>')) {
-      const mapper = TOOL_MAPPING[pending.name]
-      const parameter = mapper?.(pending.input)?.parameter
-      const context = parameter ? ` \`${parameter}\`` : ''
-      await this.emit(client, {
-        type: 'error',
-        body: `**${pending.name}**${context} failed`,
-      })
+      await this.emitToolError(pending, mapped, client)
       return
-    }
-
-    const resultText = rawContent
-
-    if (!block.is_error) {
-      switch (pending.name) {
-        case 'TaskCreate':
-          this.planTracker.handleTaskCreate(pending.input, resultText)
-          await this.pushPlan(client)
-          break
-        case 'TaskUpdate':
-          this.planTracker.handleTaskUpdate(pending.input)
-          await this.pushPlan(client)
-          break
-        case 'TodoWrite':
-          this.planTracker.handleTodoWrite(pending.input)
-          await this.pushPlan(client)
-          break
-      }
     }
 
     if (block.is_error) {
-      const mapper = TOOL_MAPPING[pending.name]
-      const parameter = mapper?.(pending.input)?.parameter
-      const context = parameter ? ` \`${parameter}\`` : ''
-      await this.emit(client, {
-        type: 'error',
-        body: `**${pending.name}**${context} failed:\n${resultText}`,
-      })
+      await this.emitToolError(pending, mapped, client, rawContent)
       return
     }
 
-    const mapper = TOOL_MAPPING[pending.name]
-    if (!mapper) return
+    await this.trackPlanUpdates(pending, rawContent, client)
 
-    const mapped = mapper(pending.input, resultText)
-    await this.emit(client, { type: 'action', ...mapped })
+    if (mapped) {
+      await this.emit(client, { type: 'action', ...mapped })
+    }
+  }
+
+  private async emitToolError(
+    pending: PendingTool,
+    mapped: ToolMapped | undefined,
+    client: LinearSdk,
+    detail?: string,
+  ): Promise<void> {
+    const context = mapped?.parameter ? ` \`${mapped.parameter}\`` : ''
+    const suffix = detail ? `:\n${detail}` : ''
+    await this.emit(client, {
+      type: 'error',
+      body: `**${pending.name}**${context} failed${suffix}`,
+    })
+  }
+
+  private async trackPlanUpdates(pending: PendingTool, resultText: string, client: LinearSdk): Promise<void> {
+    switch (pending.name) {
+      case 'TaskCreate':
+        this.planTracker.handleTaskCreate(pending.input, resultText)
+        break
+      case 'TaskUpdate':
+        this.planTracker.handleTaskUpdate(pending.input)
+        break
+      case 'TodoWrite':
+        this.planTracker.handleTodoWrite(pending.input)
+        break
+      default:
+        return
+    }
+    await this.pushPlan(client)
   }
 
   private async pushPlan(client: LinearSdk): Promise<void> {
