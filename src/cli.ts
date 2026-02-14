@@ -29,7 +29,8 @@ issue
   .description('View issue details')
   .argument('<issue-id>')
   .option('--no-download', 'Keep remote URLs instead of downloading files')
-  .action(async (issueId: string, opts: { download?: boolean }) => {
+  .option('--comments', 'Expand all comment replies')
+  .action(async (issueId: string, opts: { download?: boolean; comments?: boolean }) => {
     const { viewIssue } = await import('./issue-view')
     await viewIssue(issueId, opts)
   })
@@ -148,6 +149,52 @@ program
     const variables = opts.variables ? JSON.parse(opts.variables) : undefined
     const result = await linear.query(query, variables)
     console.log(JSON.stringify(result, null, 2))
+  })
+
+type LinearUser = {
+  name: string
+  displayName: string
+  email: string
+  gitHubUserId: string | null
+}
+
+const USER_QUERY = `query FindUser($name: String!) {
+  users(filter: { or: [
+    { displayName: { eqIgnoreCase: $name } },
+    { name: { eqIgnoreCase: $name } }
+  ] }) { nodes { name displayName email gitHubUserId } }
+}`
+
+async function resolveGitHubLogin(userId: string): Promise<string | null> {
+  const resp = await fetch(`https://api.github.com/user/${userId}`)
+  if (!resp.ok) return null
+  const gh = (await resp.json()) as { login: string }
+  return gh.login
+}
+
+program
+  .command('user')
+  .description('Look up a Linear user and their linked GitHub account')
+  .argument('<name>', 'Linear display name or username to search for')
+  .action(async (name: string) => {
+    const result = await linear.query<{ users: { nodes: LinearUser[] } }>(USER_QUERY, { name })
+
+    const match = result.users.nodes[0]
+    if (!match) {
+      console.error(`Error: No user found matching "${name}"`)
+      process.exit(1)
+    }
+
+    console.log(`Name:    ${match.name}`)
+    console.log(`Linear:  ${match.displayName}`)
+    console.log(`Email:   ${match.email}`)
+
+    if (match.gitHubUserId) {
+      const login = await resolveGitHubLogin(match.gitHubUserId)
+      console.log(`GitHub:  ${login ?? `(id: ${match.gitHubUserId}, could not resolve username)`}`)
+    } else {
+      console.log(`GitHub:  (not linked)`)
+    }
   })
 
 const REPO = 'boatri/linear-agent'
