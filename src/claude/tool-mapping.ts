@@ -19,14 +19,17 @@ export const TOOL_MAPPING: Record<
     action: 'Read file',
     parameter: String(input.file_path ?? ''),
   }),
-  Glob: (input) => ({
-    action: 'Searched files',
-    parameter: String(input.pattern ?? ''),
-  }),
-  Grep: (input) => ({
-    action: 'Searched code',
-    parameter: String(input.pattern ?? ''),
-  }),
+  Glob: (input, result) => {
+    let parameter = String(input.pattern ?? '')
+    if (input.path) parameter += ` in ${input.path}`
+    return { action: 'Searched files', parameter, ...(result ? { result } : {}) }
+  },
+  Grep: (input, result) => {
+    let parameter = String(input.pattern ?? '')
+    if (input.path) parameter += ` in ${input.path}`
+    if (input.glob) parameter += ` (${input.glob})`
+    return { action: 'Searched for pattern', parameter, ...(result ? { result } : {}) }
+  },
   Task: (input) => ({
     action: 'Delegated subtask',
     parameter: String(input.description ?? ''),
