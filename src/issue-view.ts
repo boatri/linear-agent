@@ -98,8 +98,12 @@ async function fetchIssueDetails(issueId: string): Promise<IssueDetails> {
   }
 }
 
-export async function viewIssue(issueId: string, opts: { download?: boolean } = {}): Promise<void> {
+export async function viewIssue(
+  issueId: string,
+  opts: { download?: boolean; comments?: boolean } = {},
+): Promise<void> {
   const shouldDownload = opts.download !== false
+  const expandComments = opts.comments ?? false
 
   const issueData = await fetchIssueDetails(issueId)
 
@@ -149,7 +153,7 @@ export async function viewIssue(issueId: string, opts: { download?: boolean } = 
 
     if (comments && comments.length > 0) {
       outputLines.push('')
-      outputLines.push(...captureCommentsForTerminal(comments, width, md))
+      outputLines.push(...captureCommentsForTerminal(comments, width, md, expandComments))
     }
 
     console.log(outputLines.join('\n'))
@@ -162,7 +166,7 @@ export async function viewIssue(issueId: string, opts: { download?: boolean } = 
 
     if (comments && comments.length > 0) {
       markdown += '\n\n## Comments\n\n'
-      markdown += formatCommentsAsMarkdown(comments)
+      markdown += formatCommentsAsMarkdown(comments, expandComments)
     }
 
     console.log(markdown)
@@ -189,7 +193,7 @@ function formatRelativeTime(dateString: string): string {
 }
 
 function getCommentAuthor(c: Comment): string {
-  return c.user?.displayName || c.user?.name || c.externalUser?.displayName || c.externalUser?.name || 'Unknown'
+  return c.user?.displayName || c.user?.name || c.externalUser?.displayName || c.externalUser?.name || 'system'
 }
 
 function formatCommentHeader(author: string, date: string, indent = ''): string {
@@ -232,28 +236,59 @@ function formatAttachmentsAsMarkdown(
   return md
 }
 
-function formatCommentsAsMarkdown(comments: Comment[]): string {
-  const rootComments = comments.filter((c) => !c.parent)
-  const replies = comments.filter((c) => c.parent)
+const COLLAPSE_REPLY_THRESHOLD = 3
 
-  const repliesMap = new Map<string, Comment[]>()
-  for (const reply of replies) {
-    const pid = reply.parent!.id
-    if (!repliesMap.has(pid)) repliesMap.set(pid, [])
-    repliesMap.get(pid)!.push(reply)
+type CommentThread = {
+  root: Comment
+  replies: Comment[]
+}
+
+function groupCommentThreads(comments: Comment[]): CommentThread[] {
+  const rootComments = comments.filter((c) => !c.parent)
+  const repliesByParent = new Map<string, Comment[]>()
+
+  for (const comment of comments) {
+    if (!comment.parent) continue
+    const pid = comment.parent.id
+    if (!repliesByParent.has(pid)) repliesByParent.set(pid, [])
+    repliesByParent.get(pid)!.push(comment)
   }
 
-  const sorted = rootComments.slice().reverse()
+  return rootComments
+    .slice()
+    .reverse()
+    .map((root) => {
+      const replies = repliesByParent.get(root.id) ?? []
+      replies.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      return { root, replies }
+    })
+}
+
+function shouldCollapseReplies(replies: Comment[], expand: boolean): boolean {
+  return !expand && replies.length > COLLAPSE_REPLY_THRESHOLD
+}
+
+function formatCollapseNotice(hiddenCount: number): string {
+  const noun = hiddenCount === 1 ? 'reply' : 'replies'
+  return `${hiddenCount} earlier ${noun} hidden (rerun with --comments to expand)`
+}
+
+function formatCommentsAsMarkdown(comments: Comment[], expand = false): string {
+  const threads = groupCommentThreads(comments)
   let md = ''
 
-  for (const root of sorted) {
-    const threadReplies = repliesMap.get(root.id) ?? []
-    threadReplies.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-
+  for (const { root, replies } of threads) {
     md += `- **@${getCommentAuthor(root)}** - *${formatRelativeTime(root.createdAt)}*\n\n`
     md += `  ${root.body.split('\n').join('\n  ')}\n\n`
 
-    for (const reply of threadReplies) {
+    const collapsed = shouldCollapseReplies(replies, expand)
+    const visibleReplies = collapsed ? [replies[replies.length - 1]] : replies
+
+    if (collapsed) {
+      md += `  *↳ ${formatCollapseNotice(replies.length - 1)}*\n\n`
+    }
+
+    for (const reply of visibleReplies) {
       md += `  - **@${getCommentAuthor(reply)}** - *${formatRelativeTime(reply.createdAt)}*\n\n`
       md += `    ${reply.body.split('\n').join('\n    ')}\n\n`
     }
@@ -262,35 +297,38 @@ function formatCommentsAsMarkdown(comments: Comment[]): string {
   return md
 }
 
-function captureCommentsForTerminal(comments: Comment[], width: number, md: Marked): string[] {
-  const rootComments = comments.filter((c) => !c.parent)
-  const replies = comments.filter((c) => c.parent)
-
-  const repliesMap = new Map<string, Comment[]>()
-  for (const reply of replies) {
-    const pid = reply.parent!.id
-    if (!repliesMap.has(pid)) repliesMap.set(pid, [])
-    repliesMap.get(pid)!.push(reply)
-  }
-
-  const sorted = rootComments.slice().reverse()
+function captureCommentsForTerminal(
+  comments: Comment[],
+  width: number,
+  md: Marked,
+  expand = false,
+): string[] {
+  const threads = groupCommentThreads(comments)
   const lines: string[] = []
-  for (const root of sorted) {
-    const threadReplies = repliesMap.get(root.id) ?? []
-    threadReplies.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+
+  for (let i = 0; i < threads.length; i++) {
+    const { root, replies } = threads[i]
 
     lines.push(formatCommentHeader(getCommentAuthor(root), formatRelativeTime(root.createdAt)))
     lines.push(...(md.parse(root.body) as string).split('\n'))
 
-    if (threadReplies.length > 0) lines.push('')
+    if (replies.length > 0) {
+      const collapsed = shouldCollapseReplies(replies, expand)
+      const visibleReplies = collapsed ? [replies[replies.length - 1]] : replies
 
-    for (const reply of threadReplies) {
-      lines.push(formatCommentHeader(getCommentAuthor(reply), formatRelativeTime(reply.createdAt), '  '))
-      const rendered = md.parse(reply.body) as string
-      lines.push(...rendered.split('\n').map((l) => '  ' + l))
+      if (collapsed) {
+        lines.push(chalk.dim(`  ↳ ${formatCollapseNotice(replies.length - 1)}`))
+      }
+
+      lines.push('')
+      for (const reply of visibleReplies) {
+        lines.push(formatCommentHeader(getCommentAuthor(reply), formatRelativeTime(reply.createdAt), '  '))
+        const rendered = md.parse(reply.body) as string
+        lines.push(...rendered.split('\n').map((l) => '  ' + l))
+      }
     }
 
-    if (root !== sorted[sorted.length - 1]) lines.push('')
+    if (i < threads.length - 1) lines.push('')
   }
 
   return lines
