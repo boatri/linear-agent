@@ -15,17 +15,19 @@ function safeString(value: unknown): string {
   return String(value ?? '')
 }
 
+function formatDiff(oldStr: string, newStr: string): string | undefined {
+  if (!oldStr && !newStr) return undefined
+  const lines = [
+    ...oldStr.split('\n').map((l) => `- ${l}`),
+    ...newStr.split('\n').map((l) => `+ ${l}`),
+  ]
+  return '```diff\n' + lines.join('\n') + '\n```'
+}
+
 export const TOOL_MAPPING: Record<string, ToolMapper> = {
   Bash: (input, result) => withResult({ action: 'Ran command', parameter: safeString(input.command) }, result),
   Edit: (input) => {
-    const oldStr = safeString(input.old_string)
-    const newStr = safeString(input.new_string)
-    const diff = oldStr || newStr
-      ? '```diff\n' + [
-          ...oldStr.split('\n').map((l) => `- ${l}`),
-          ...newStr.split('\n').map((l) => `+ ${l}`),
-        ].join('\n') + '\n```'
-      : undefined
+    const diff = formatDiff(safeString(input.old_string), safeString(input.new_string))
     return withResult({ action: 'Edited file', parameter: safeString(input.file_path) }, diff)
   },
   Write: (input) => ({ action: 'Created file', parameter: safeString(input.file_path) }),
