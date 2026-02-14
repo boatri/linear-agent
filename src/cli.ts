@@ -31,20 +31,42 @@ issue
   .argument('<issue-id>')
   .option('--no-download', 'Keep remote URLs instead of downloading files')
   .option('--comments', 'Expand all comment replies')
-  .action(async (issueId: string, opts: { download?: boolean; comments?: boolean }) => {
-    const { viewIssue } = await import('./issue-view')
-    await viewIssue(issueId, opts)
+  .option('--json', 'Output raw JSON')
+  .action(async (issueId: string, opts: { download?: boolean; comments?: boolean; json?: boolean }) => {
+    const { viewIssue, fetchIssue } = await import('./issue-view')
+    if (opts.json) {
+      const data = await fetchIssue(issueId)
+      let github: string | null = null
+      if (data.assignee?.gitHubUserId) {
+        github = await resolveGitHubLogin(data.assignee.gitHubUserId)
+      }
+      console.log(JSON.stringify({ ...data, assignee: data.assignee ? { ...data.assignee, gitHubUserName: github } : null }, null, 2))
+    } else {
+      await viewIssue(issueId, opts)
+    }
   })
 
 issue
   .command('list')
   .description('List issues')
   .option('--state <name>', 'Filter by workflow state')
-  .action(async (opts: { state?: string }) => {
+  .option('--json', 'Output raw JSON')
+  .action(async (opts: { state?: string; json?: boolean }) => {
     const issues = await linear.issues({
       filter: opts.state ? { state: { name: { eq: opts.state } } } : undefined,
       first: 50,
     })
+
+    if (opts.json) {
+      const items = await Promise.all(
+        issues.nodes.map(async (i) => {
+          const state = await i.state
+          return { identifier: i.identifier, title: i.title, state: state?.name ?? null }
+        }),
+      )
+      console.log(JSON.stringify(items, null, 2))
+      return
+    }
 
     if (issues.nodes.length === 0) {
       console.log('No issues found.')
@@ -170,7 +192,8 @@ program
   .command('user')
   .description('Look up a Linear user and their linked GitHub account')
   .argument('<name>', 'Linear display name or username to search for')
-  .action(async (name: string) => {
+  .option('--json', 'Output raw JSON')
+  .action(async (name: string, opts: { json?: boolean }) => {
     const result = await linear.query<{ users: { nodes: LinearUser[] } }>(USER_QUERY, { name })
 
     const match = result.users.nodes[0]
@@ -179,16 +202,19 @@ program
       process.exit(1)
     }
 
+    const github = match.gitHubUserId ? await resolveGitHubLogin(match.gitHubUserId) : null
+
+    if (opts.json) {
+      console.log(JSON.stringify({ ...match, gitHubUserName: github }, null, 2))
+      return
+    }
+
     console.log(`Name:    ${match.name}`)
     console.log(`Linear:  ${match.displayName}`)
     console.log(`Email:   ${match.email}`)
-
-    if (match.gitHubUserId) {
-      const login = await resolveGitHubLogin(match.gitHubUserId)
-      console.log(`GitHub:  ${login ?? `(id: ${match.gitHubUserId}, could not resolve username)`}`)
-    } else {
-      console.log(`GitHub:  (not linked)`)
-    }
+    const githubLabel = github
+      ?? (match.gitHubUserId ? `(id: ${match.gitHubUserId}, could not resolve username)` : '(not linked)')
+    console.log(`GitHub:  ${githubLabel}`)
   })
 
 const REPO = 'boatri/linear-agent'

@@ -99,7 +99,7 @@ const ISSUE_QUERY = `
   }
 `
 
-async function fetchIssueDetails(issueId: string): Promise<IssueDetails> {
+export async function fetchIssue(issueId: string): Promise<IssueDetails> {
   const data = await linear.query<{ issue: any }>(ISSUE_QUERY, { id: issueId })
   return {
     ...data.issue,
@@ -116,7 +116,7 @@ export async function viewIssue(
   const shouldDownload = opts.download !== false
   const expandComments = opts.comments ?? false
 
-  const issueData = await fetchIssueDetails(issueId)
+  const issueData = await fetchIssue(issueId)
 
   let urlToPath: Map<string, string> | undefined
   if (shouldDownload) {
