@@ -30,9 +30,9 @@ issue
   .description('View issue details')
   .argument('<issue-id>')
   .option('--no-download', 'Keep remote URLs instead of downloading files')
-  .option('--comments', 'Expand all comment replies')
+  .option('--all-comments', 'Expand all comment replies')
   .option('--json', 'Output raw JSON')
-  .action(async (issueId: string, opts: { download?: boolean; comments?: boolean; json?: boolean }) => {
+  .action(async (issueId: string, opts: { download?: boolean; allComments?: boolean; json?: boolean }) => {
     const { viewIssue, fetchIssue } = await import('./issue-view')
     if (opts.json) {
       const data = await fetchIssue(issueId)
@@ -42,7 +42,7 @@ issue
       }
       console.log(JSON.stringify({ ...data, assignee: data.assignee ? { ...data.assignee, gitHubUserName: github } : null }, null, 2))
     } else {
-      await viewIssue(issueId, opts)
+      await viewIssue(issueId, { download: opts.download, comments: opts.allComments })
     }
   })
 

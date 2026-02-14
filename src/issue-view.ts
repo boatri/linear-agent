@@ -296,7 +296,7 @@ function groupCommentThreads(comments: Comment[]): CommentThread[] {
 
 function formatCollapseNotice(hiddenCount: number): string {
   const noun = hiddenCount === 1 ? 'reply' : 'replies'
-  return `${hiddenCount} earlier ${noun} hidden (rerun with --comments to expand)`
+  return `${hiddenCount} earlier ${noun} hidden (rerun with --all-comments to expand)`
 }
 
 function formatCommentsAsMarkdown(comments: Comment[], expand = false): string {
