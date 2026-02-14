@@ -2,6 +2,8 @@ import { createHash } from 'crypto'
 import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
+// marked is pinned to v11 because marked-terminal breaks inline formatting in list items with v13+
+// Tracking fix: https://github.com/mikaelbr/marked-terminal/pull/366
 import { Marked } from 'marked'
 // @ts-expect-error no types available
 import { markedTerminal } from 'marked-terminal'
@@ -13,6 +15,7 @@ import remarkStringify from 'remark-stringify'
 import { visit } from 'unist-util-visit'
 import type { Image, Link, Root } from 'mdast'
 import { linear } from './linear'
+import { resolveGitHubLogin } from './github'
 
 type IssueRef = {
   identifier: string
@@ -39,6 +42,12 @@ type Attachment = {
   createdAt: string
 }
 
+type Assignee = {
+  name: string
+  displayName: string
+  gitHubUserId?: string | null
+}
+
 type IssueDetails = {
   identifier: string
   title: string
@@ -46,6 +55,7 @@ type IssueDetails = {
   url: string
   branchName: string
   state: { name: string; color: string }
+  assignee?: Assignee | null
   parent?: IssueRef | null
   children?: IssueRef[]
   comments?: Comment[]
@@ -61,6 +71,7 @@ const ISSUE_QUERY = `
       url
       branchName
       state { name color }
+      assignee { name displayName gitHubUserId }
       parent {
         identifier title
         state { name color }
@@ -131,7 +142,8 @@ export async function viewIssue(
     }
   }
 
-  const { identifier, title } = issueData
+  const { identifier, title, assignee } = issueData
+  const assigneeLabel = await formatAssigneeLabel(assignee)
   let markdown = `# ${identifier}: ${title}${description ? '\n\n' + description : ''}`
 
   if (process.stdout.isTTY) {
@@ -140,6 +152,10 @@ export async function viewIssue(
     const md = new Marked(markedTerminal({ width }))
     const rendered = md.parse(markdown) as string
     const outputLines = rendered.split('\n')
+
+    if (assigneeLabel) {
+      outputLines.push(...(md.parse(`**Assignee:** ${assigneeLabel}`) as string).split('\n'))
+    }
 
     const hierarchyMd = formatIssueHierarchyAsMarkdown(issueData.parent, issueData.children)
     if (hierarchyMd) {
@@ -153,11 +169,15 @@ export async function viewIssue(
 
     if (comments && comments.length > 0) {
       outputLines.push('')
-      outputLines.push(...captureCommentsForTerminal(comments, width, md, expandComments))
+      outputLines.push(...captureCommentsForTerminal(comments, md, expandComments))
     }
 
     console.log(outputLines.join('\n'))
   } else {
+    if (assigneeLabel) {
+      markdown += `\n\n**Assignee:** ${assigneeLabel}`
+    }
+
     markdown += formatIssueHierarchyAsMarkdown(issueData.parent, issueData.children)
 
     if (issueData.attachments && issueData.attachments.length > 0) {
@@ -194,6 +214,16 @@ function formatRelativeTime(dateString: string): string {
 
 function getCommentAuthor(c: Comment): string {
   return c.user?.displayName || c.user?.name || c.externalUser?.displayName || c.externalUser?.name || 'system'
+}
+
+async function formatAssigneeLabel(assignee: Assignee | null | undefined): Promise<string> {
+  if (!assignee) return ''
+  let label = `@${assignee.displayName}`
+  if (assignee.gitHubUserId) {
+    const ghLogin = await resolveGitHubLogin(assignee.gitHubUserId)
+    if (ghLogin) label += ` (github: \`${ghLogin}\`)`
+  }
+  return label
 }
 
 function formatCommentHeader(author: string, date: string, indent = ''): string {
@@ -264,10 +294,6 @@ function groupCommentThreads(comments: Comment[]): CommentThread[] {
     })
 }
 
-function shouldCollapseReplies(replies: Comment[], expand: boolean): boolean {
-  return !expand && replies.length > COLLAPSE_REPLY_THRESHOLD
-}
-
 function formatCollapseNotice(hiddenCount: number): string {
   const noun = hiddenCount === 1 ? 'reply' : 'replies'
   return `${hiddenCount} earlier ${noun} hidden (rerun with --comments to expand)`
@@ -281,7 +307,7 @@ function formatCommentsAsMarkdown(comments: Comment[], expand = false): string {
     md += `- **@${getCommentAuthor(root)}** - *${formatRelativeTime(root.createdAt)}*\n\n`
     md += `  ${root.body.split('\n').join('\n  ')}\n\n`
 
-    const collapsed = shouldCollapseReplies(replies, expand)
+    const collapsed = !expand && replies.length > COLLAPSE_REPLY_THRESHOLD
     const visibleReplies = collapsed ? [replies[replies.length - 1]] : replies
 
     if (collapsed) {
@@ -297,12 +323,7 @@ function formatCommentsAsMarkdown(comments: Comment[], expand = false): string {
   return md
 }
 
-function captureCommentsForTerminal(
-  comments: Comment[],
-  width: number,
-  md: Marked,
-  expand = false,
-): string[] {
+function captureCommentsForTerminal(comments: Comment[], md: Marked, expand = false): string[] {
   const threads = groupCommentThreads(comments)
   const lines: string[] = []
 
@@ -313,7 +334,7 @@ function captureCommentsForTerminal(
     lines.push(...(md.parse(root.body) as string).split('\n'))
 
     if (replies.length > 0) {
-      const collapsed = shouldCollapseReplies(replies, expand)
+      const collapsed = !expand && replies.length > COLLAPSE_REPLY_THRESHOLD
       const visibleReplies = collapsed ? [replies[replies.length - 1]] : replies
 
       if (collapsed) {

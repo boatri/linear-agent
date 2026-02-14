@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { Command } from 'commander'
 import { linear } from './linear'
+import { resolveGitHubLogin } from './github'
 import { Watcher } from './claude/watcher'
 import { acquireLock } from './claude/lock'
 
@@ -164,13 +165,6 @@ const USER_QUERY = `query FindUser($name: String!) {
     { name: { eqIgnoreCase: $name } }
   ] }) { nodes { name displayName email gitHubUserId } }
 }`
-
-async function resolveGitHubLogin(userId: string): Promise<string | null> {
-  const resp = await fetch(`https://api.github.com/user/${userId}`)
-  if (!resp.ok) return null
-  const gh = (await resp.json()) as { login: string }
-  return gh.login
-}
 
 program
   .command('user')
