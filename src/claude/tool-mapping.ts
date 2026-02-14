@@ -30,10 +30,13 @@ export const TOOL_MAPPING: Record<
     if (input.glob) parameter += ` (${input.glob})`
     return { action: 'Searched for pattern', parameter, ...(result ? { result } : {}) }
   },
-  Task: (input) => ({
-    action: 'Delegated subtask',
-    parameter: String(input.description ?? ''),
-  }),
+  Task: (input, result) => {
+    const desc = String(input.description ?? '')
+    if (!result) return { action: 'Delegated subtask', parameter: desc }
+
+    const responseText = result.replace(/agentId:.*\n?/g, '').replace(/<usage>[\s\S]*?<\/usage>/g, '').trim()
+    return { action: 'Delegated subtask', parameter: desc, ...(responseText ? { result: responseText } : {}) }
+  },
   WebFetch: (input, result) => ({
     action: 'Fetched URL',
     parameter: String(input.url ?? ''),
