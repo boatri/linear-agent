@@ -299,6 +299,7 @@ describe("Watcher internals", () => {
                 { type: "tool_result", tool_use_id: "tu-1", content: "file contents" },
               ],
             },
+            sourceToolAssistantUUID: "assistant-uuid",
           },
         ),
       );

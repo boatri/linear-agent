@@ -52,6 +52,7 @@ function userEntry(...results: ToolResultBlock[]): UserEntry {
     ...BASE,
     type: "user",
     message: { role: "user", content: results },
+    sourceToolAssistantUUID: "assistant-uuid",
   };
 }
 
@@ -303,7 +304,7 @@ describe("ActivityEmitter", () => {
       expect(activities).toHaveLength(4);
 
       // Result for tu-B (arrived first)
-      expect((activities[2].content as any).action).toBe("Searched code");
+      expect((activities[2].content as any).action).toBe("Searched for pattern");
       expect((activities[2].content as any).parameter).toBe("TODO");
 
       // Result for tu-A (arrived second)
@@ -338,7 +339,7 @@ describe("ActivityEmitter", () => {
         agentSessionId: SESSION,
         content: {
           type: "error",
-          body: "**Bash** failed: Permission denied",
+          body: "**Bash** `rm -rf /` failed:\nPermission denied",
         },
       });
     });
