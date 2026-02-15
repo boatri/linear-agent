@@ -1,6 +1,6 @@
 {
   "name": "linear-agent",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Stream Claude Code session activities to Linear in real-time",
   "license": "MIT",
   "type": "module",
