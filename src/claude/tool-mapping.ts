@@ -55,14 +55,9 @@ export const TOOL_MAPPING: Record<string, ToolMapper> = {
   },
   Write: (input) => ({ action: 'Created file', parameter: safeString(input.file_path) }),
   Read: (input) => ({ action: 'Read file', parameter: safeString(input.file_path) }),
-  Glob: (input, result) => {
-    let parameter = safeString(input.pattern)
-    if (input.path) parameter += ` in ${input.path}`
-    return withResult({ action: 'Searched files', parameter }, result)
-  },
+  Glob: (input, result) => withResult({ action: 'Searched files', parameter: safeString(input.pattern) }, result),
   Grep: (input, result) => {
     let parameter = safeString(input.pattern)
-    if (input.path) parameter += ` in ${input.path}`
     if (input.glob) parameter += ` (${input.glob})`
     return withResult({ action: 'Searched for pattern', parameter }, result)
   },
