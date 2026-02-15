@@ -172,6 +172,9 @@ export async function viewIssue(
       outputLines.push(...captureCommentsForTerminal(comments, md, expandComments))
     }
 
+    while (outputLines.at(-1)?.trim() === '') {
+      outputLines.pop()
+    }
     console.log(outputLines.join('\n'))
   } else {
     if (assigneeLabel) {
@@ -185,11 +188,13 @@ export async function viewIssue(
     }
 
     if (comments && comments.length > 0) {
-      markdown += '\n\n## Comments\n\n'
-      markdown += formatCommentsAsMarkdown(comments, expandComments)
+      const commentsMd = formatCommentsAsMarkdown(comments, expandComments)
+      if (commentsMd.trim()) {
+        markdown += '\n\n## Comments\n\n' + commentsMd
+      }
     }
 
-    console.log(markdown)
+    console.log(markdown.trimEnd())
   }
 }
 
@@ -218,12 +223,13 @@ function getCommentAuthor(c: Comment): string {
 
 async function formatAssigneeLabel(assignee: Assignee | null | undefined): Promise<string> {
   if (!assignee) return ''
-  let label = `@${assignee.displayName}`
+  const parts = [`linear: \`${assignee.displayName}\``]
   if (assignee.gitHubUserId) {
     const ghLogin = await resolveGitHubLogin(assignee.gitHubUserId)
-    if (ghLogin) label += ` (github: \`${ghLogin}\`)`
+    if (ghLogin) parts.push(`github: \`${ghLogin}\``)
   }
-  return label
+  const name = assignee.name || assignee.displayName
+  return `${name} (${parts.join(', ')})`
 }
 
 function formatCommentHeader(author: string, date: string, indent = ''): string {
