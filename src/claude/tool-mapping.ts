@@ -15,17 +15,40 @@ function safeString(value: unknown): string {
   return String(value ?? '')
 }
 
+function codeBlock(content: string, lang: string): string {
+  return '```' + lang + '\n' + content + '\n```'
+}
+
+function isJson(str: string): boolean {
+  try {
+    JSON.parse(str)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function formatBashResult(command: string, result: string): string {
+  if (/^git\s+diff\b/.test(command)) return codeBlock(result, 'diff')
+  if (isJson(result)) return codeBlock(result, 'json')
+  return result
+}
+
 function formatDiff(oldStr: string, newStr: string): string | undefined {
   if (!oldStr && !newStr) return undefined
   const lines = [
     ...oldStr.split('\n').map((l) => `- ${l}`),
     ...newStr.split('\n').map((l) => `+ ${l}`),
   ]
-  return '```diff\n' + lines.join('\n') + '\n```'
+  return codeBlock(lines.join('\n'), 'diff')
 }
 
 export const TOOL_MAPPING: Record<string, ToolMapper> = {
-  Bash: (input, result) => withResult({ action: 'Ran command', parameter: safeString(input.command) }, result),
+  Bash: (input, result) => {
+    const command = safeString(input.command)
+    const formatted = result ? formatBashResult(command, result) : undefined
+    return withResult({ action: 'Ran command', parameter: command }, formatted)
+  },
   Edit: (input) => {
     const diff = formatDiff(safeString(input.old_string), safeString(input.new_string))
     return withResult({ action: 'Edited file', parameter: safeString(input.file_path) }, diff)
