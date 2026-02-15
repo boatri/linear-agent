@@ -86,7 +86,9 @@ export class ActivityEmitter {
       const text = typeof entry.message.content === 'string' ? entry.message.content : ''
       const externalPrompt = text.match(/<prompt>([\s\S]*?)<\/prompt>/)?.[1]?.trim()
       if (externalPrompt) {
-        await this.emit(client, { type: 'response', body: `> **External prompt:** ${externalPrompt}` })
+        // Use error type so Linear doesn't post it as a separate issue comment
+        // when the session goes idle (errors only flash red briefly, then persist in session history)
+        await this.emit(client, { type: 'error', body: `> **External prompt:** ${externalPrompt}` })
       }
       return
     }
