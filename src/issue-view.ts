@@ -153,9 +153,9 @@ export async function viewIssue(
     const rendered = md.parse(markdown) as string
     const outputLines = rendered.split('\n')
 
-    if (assigneeLabel) {
-      outputLines.push(...(md.parse(`**Assignee:** ${assigneeLabel}`) as string).split('\n'))
-    }
+    const metaLines = [`**State:** ${issueData.state.name}`]
+    if (assigneeLabel) metaLines.push(`**Assignee:** ${assigneeLabel}`)
+    outputLines.push(...(md.parse(metaLines.join('\n')) as string).split('\n'))
 
     const hierarchyMd = formatIssueHierarchyAsMarkdown(issueData.parent, issueData.children)
     if (hierarchyMd) {
@@ -177,8 +177,9 @@ export async function viewIssue(
     }
     console.log(outputLines.join('\n'))
   } else {
+    markdown += `\n\n**State:** ${issueData.state.name}`
     if (assigneeLabel) {
-      markdown += `\n\n**Assignee:** ${assigneeLabel}`
+      markdown += `\n**Assignee:** ${assigneeLabel}`
     }
 
     markdown += formatIssueHierarchyAsMarkdown(issueData.parent, issueData.children)
