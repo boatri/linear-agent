@@ -79,7 +79,7 @@ export const TOOL_MAPPING: Record<string, ToolMapper> = {
   TaskUpdate: (input) => ({ action: 'Updated task', parameter: safeString(input.taskId) }),
   Skill: (input) => ({ action: 'Invoked skill', parameter: safeString(input.skill) }),
   AskUserQuestion: (input) => ({
-    action: 'Asked user',
+    action: 'Asked user', // Shouldn't happen normally, will be handled though elicitation session activity
     parameter: safeString((input.questions as Array<{ question: string }> | undefined)?.[0]?.question),
   }),
   NotebookEdit: (input) => ({ action: 'Edited notebook', parameter: safeString(input.notebook_path) }),
