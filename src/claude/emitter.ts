@@ -82,11 +82,22 @@ export class ActivityEmitter {
   }
 
   private async processUser(entry: UserEntry, client: LinearSdk): Promise<void> {
-    for (const block of entry.message.content) {
+    if (!entry.sourceToolAssistantUUID) {
+      const text = typeof entry.message.content === 'string' ? entry.message.content : ''
+      const externalPrompt = text.match(/<prompt>([\s\S]*?)<\/prompt>/)?.[1]?.trim()
+      if (externalPrompt) {
+        await this.emit(client, { type: 'response', body: `> **External prompt:** ${externalPrompt}` })
+      }
+      return
+    }
+
+    const content = entry.message.content
+    if (!Array.isArray(content)) return
+
+    for (const block of content) {
       if (block.type === 'tool_result') {
         await this.emitToolResult(block, client)
       }
-      // Skip user text (prompts) — Linear shows these natively
     }
   }
 

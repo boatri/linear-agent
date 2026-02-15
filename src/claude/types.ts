@@ -49,7 +49,7 @@ export interface UserEntry extends EntryBase {
   type: 'user'
   message: {
     role: 'user'
-    content: (TextBlock | ToolResultBlock)[]
+    content: string | (TextBlock | ToolResultBlock)[]
   }
   toolUseResult?:
     | string
