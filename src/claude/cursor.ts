@@ -1,10 +1,15 @@
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { createHash } from 'crypto'
+import { homedir } from 'os'
+import { join } from 'path'
 import type { CursorState } from './types'
+
+// Persist cursors outside /tmp so they survive instance reboots
+const CURSOR_DIR = join(homedir(), '.local', 'share', 'linear-agent', 'cursors')
 
 function cursorPath(filePath: string): string {
   const hash = createHash('sha256').update(filePath).digest('hex').slice(0, 16)
-  return `/tmp/claude-linear-cursor-${hash}.json`
+  return join(CURSOR_DIR, `${hash}.json`)
 }
 
 export function loadCursor(filePath: string): CursorState | null {
@@ -21,6 +26,7 @@ export function loadCursor(filePath: string): CursorState | null {
 
 export function saveCursor(filePath: string, cursor: CursorState): void {
   try {
+    mkdirSync(CURSOR_DIR, { recursive: true })
     writeFileSync(cursorPath(filePath), JSON.stringify(cursor))
   } catch {
     // Non-fatal
