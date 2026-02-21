@@ -5,7 +5,9 @@ import { resolveGitHubLogin } from './github'
 import { Watcher } from './claude/watcher'
 import { acquireLock } from './claude/lock'
 
-const program = new Command().name('linear-agent').description('Stream Claude Code sessions to Linear')
+// Read version from package.json at build time via Bun's bundler
+const { version } = await import('../package.json')
+const program = new Command().name('linear-agent').version(version, '-v, --version').description('Stream Claude Code sessions to Linear')
 
 const watch = program.command('watch').description('Watch an agent backend and emit activities to Linear')
 
