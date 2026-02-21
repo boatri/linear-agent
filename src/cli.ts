@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import chalk from 'chalk'
 import { Command } from 'commander'
 import { linear } from './linear'
 import { resolveGitHubLogin } from './github'
@@ -303,10 +304,26 @@ program
   .command('update')
   .description('Update to the latest release')
   .action(async () => {
+    const current = version
+
+    // Fetch latest version from GitHub API
+    const releaseResp = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`)
+    if (!releaseResp.ok) {
+      console.error(`Error: Failed to check for updates (${releaseResp.status})`)
+      process.exit(1)
+    }
+    const release = (await releaseResp.json()) as { tag_name: string }
+    const latest = release.tag_name.replace(/^v/, '')
+
+    if (current === latest) {
+      console.log(`Already up to date ${chalk.dim(`(${current})`)}`)
+      return
+    }
+
     const binPath = process.execPath
     const asset = getBinaryName()
     const url = `https://github.com/${REPO}/releases/latest/download/${asset}`
-    console.log(`Downloading ${asset}...`)
+    console.log(`Updating ${chalk.dim(current)} → ${chalk.green(latest)}...`)
     const resp = await fetch(url, { redirect: 'follow' })
     if (!resp.ok) {
       console.error(`Error: Failed to download (${resp.status})`)
@@ -315,7 +332,7 @@ program
     await Bun.write(binPath, resp)
     const { chmodSync } = await import('fs')
     chmodSync(binPath, 0o755)
-    console.log(`Updated ${binPath}`)
+    console.log(`Updated to ${chalk.green(latest)}`)
   })
 
 program.parseAsync().catch((err) => {
