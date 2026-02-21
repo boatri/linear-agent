@@ -330,9 +330,10 @@ program
       console.error(`Error: Failed to download (${resp.status})`)
       process.exit(1)
     }
-    const { chmodSync, renameSync } = await import('fs')
+    const { chmodSync, renameSync, unlinkSync } = await import('fs')
     await Bun.write(tmpPath, resp)
     chmodSync(tmpPath, 0o755)
+    unlinkSync(binPath)
     renameSync(tmpPath, binPath)
     console.log(`Updated to ${chalk.green(latest)}`)
   })
