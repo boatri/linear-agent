@@ -330,11 +330,11 @@ program
       console.error(`Error: Failed to download (${resp.status})`)
       process.exit(1)
     }
-    const { chmodSync, renameSync, unlinkSync } = await import('fs')
+    const { chmodSync } = await import('fs')
+    const { execSync } = await import('child_process')
     await Bun.write(tmpPath, resp)
     chmodSync(tmpPath, 0o755)
-    unlinkSync(binPath)
-    renameSync(tmpPath, binPath)
+    execSync(`mv -f "${tmpPath}" "${binPath}"`)
     console.log(`Updated to ${chalk.green(latest)}`)
   })
 
