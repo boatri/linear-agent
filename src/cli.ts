@@ -321,6 +321,7 @@ program
     }
 
     const binPath = process.execPath
+    const tmpPath = `${binPath}.tmp`
     const asset = getBinaryName()
     const url = `https://github.com/${REPO}/releases/latest/download/${asset}`
     console.log(`Updating ${chalk.dim(current)} → ${chalk.green(latest)}...`)
@@ -329,9 +330,10 @@ program
       console.error(`Error: Failed to download (${resp.status})`)
       process.exit(1)
     }
-    await Bun.write(binPath, resp)
-    const { chmodSync } = await import('fs')
-    chmodSync(binPath, 0o755)
+    const { chmodSync, renameSync } = await import('fs')
+    await Bun.write(tmpPath, resp)
+    chmodSync(tmpPath, 0o755)
+    renameSync(tmpPath, binPath)
     console.log(`Updated to ${chalk.green(latest)}`)
   })
 
