@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import chalk from 'chalk'
 import { Command } from 'commander'
+import { chmodSync, renameSync } from 'fs'
 import { linear } from './linear'
 import { resolveGitHubLogin } from './github'
 import { Watcher } from './claude/watcher'
@@ -330,11 +331,9 @@ program
       console.error(`Error: Failed to download (${resp.status})`)
       process.exit(1)
     }
-    const { chmodSync } = await import('fs')
-    const { execSync } = await import('child_process')
     await Bun.write(tmpPath, resp)
     chmodSync(tmpPath, 0o755)
-    execSync(`mv -f "${tmpPath}" "${binPath}"`)
+    renameSync(tmpPath, binPath)
     console.log(`Updated to ${chalk.green(latest)}`)
   })
 
