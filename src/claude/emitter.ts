@@ -64,6 +64,9 @@ export class ActivityEmitter {
       return
     }
 
+    // Skip synthetic non-error messages injected by the CLI (e.g. "No response requested." on interrupt)
+    if (entry.message.model === '<synthetic>') return
+
     // Each assistant entry has a single-element content array
     const block = entry.message.content[0]
     if (!block) return
