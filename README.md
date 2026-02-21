@@ -55,16 +55,16 @@ Download the binary for your platform:
 mkdir -p ~/.local/bin
 
 # macOS (Apple Silicon)
-curl -fsSL https://github.com/boatri/linear-agent/releases/latest/download/linear-agent-darwin-arm64 -o ~/.local/bin/linear-agent
+curl -fsSL https://github.com/membranehq/linear-agent/releases/latest/download/linear-agent-darwin-arm64 -o ~/.local/bin/linear-agent
 
 # macOS (Intel)
-curl -fsSL https://github.com/boatri/linear-agent/releases/latest/download/linear-agent-darwin-x64 -o ~/.local/bin/linear-agent
+curl -fsSL https://github.com/membranehq/linear-agent/releases/latest/download/linear-agent-darwin-x64 -o ~/.local/bin/linear-agent
 
 # Linux (x86-64)
-curl -fsSL https://github.com/boatri/linear-agent/releases/latest/download/linear-agent-linux-x64 -o ~/.local/bin/linear-agent
+curl -fsSL https://github.com/membranehq/linear-agent/releases/latest/download/linear-agent-linux-x64 -o ~/.local/bin/linear-agent
 
 # Linux (ARM64)
-curl -fsSL https://github.com/boatri/linear-agent/releases/latest/download/linear-agent-linux-arm64 -o ~/.local/bin/linear-agent
+curl -fsSL https://github.com/membranehq/linear-agent/releases/latest/download/linear-agent-linux-arm64 -o ~/.local/bin/linear-agent
 ```
 
 ```bash
@@ -76,7 +76,7 @@ To update: `linear-agent update`
 ### From source
 
 ```bash
-git clone https://github.com/boatri/linear-agent.git
+git clone https://github.com/membranehq/linear-agent.git
 cd linear-agent
 bun install
 bun link

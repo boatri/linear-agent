@@ -292,7 +292,7 @@ program
     console.log(assetUrl)
   })
 
-const REPO = 'boatri/linear-agent'
+const REPO = 'membranehq/linear-agent'
 
 function getBinaryName(): string {
   const platform = process.platform === 'win32' ? 'windows' : process.platform
