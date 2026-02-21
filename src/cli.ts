@@ -223,6 +223,71 @@ program
     console.log(`GitHub:  ${githubLabel}`)
   })
 
+program
+  .command('upload')
+  .description('Upload a file to Linear and print the asset URL')
+  .argument('<file>', 'Path to the file to upload')
+  .action(async (filePath: string) => {
+    const file = Bun.file(filePath)
+
+    if (!(await file.exists())) {
+      console.error(`Error: File not found: ${filePath}`)
+      process.exit(1)
+    }
+
+    const filename = filePath.split('/').pop()!
+    const contentType = file.type
+    const fileBuffer = await file.arrayBuffer()
+
+    console.error(`Uploading ${filename} (${file.size} bytes, ${contentType})...`)
+
+    const result = await linear.query<{
+      fileUpload: {
+        success: boolean
+        uploadFile: {
+          uploadUrl: string
+          assetUrl: string
+          headers: Array<{ key: string; value: string }>
+        }
+      }
+    }>(
+      `mutation FileUpload($size: Int!, $contentType: String!, $filename: String!) {
+        fileUpload(size: $size, contentType: $contentType, filename: $filename) {
+          success
+          uploadFile { uploadUrl assetUrl headers { key value } }
+        }
+      }`,
+      { size: file.size, contentType, filename },
+    )
+
+    if (!result.fileUpload.success) {
+      console.error('Error: fileUpload mutation failed')
+      process.exit(1)
+    }
+
+    const { uploadUrl, assetUrl, headers } = result.fileUpload.uploadFile
+
+    const putHeaders = new Headers()
+    putHeaders.set('Content-Type', contentType)
+    putHeaders.set('Cache-Control', 'public, max-age=31536000')
+    for (const { key, value } of headers) {
+      putHeaders.set(key, value)
+    }
+
+    const putResponse = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: putHeaders,
+      body: fileBuffer,
+    })
+
+    if (!putResponse.ok) {
+      console.error(`Error: Upload failed (${putResponse.status})`)
+      process.exit(1)
+    }
+
+    console.log(assetUrl)
+  })
+
 const REPO = 'boatri/linear-agent'
 
 function getBinaryName(): string {
