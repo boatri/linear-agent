@@ -40,7 +40,13 @@ issue
       if (data.assignee?.gitHubUserId) {
         github = await resolveGitHubLogin(data.assignee.gitHubUserId)
       }
-      console.log(JSON.stringify({ ...data, assignee: data.assignee ? { ...data.assignee, gitHubUserName: github } : null }, null, 2))
+      console.log(
+        JSON.stringify(
+          { ...data, assignee: data.assignee ? { ...data.assignee, gitHubUserName: github } : null },
+          null,
+          2,
+        ),
+      )
     } else {
       await viewIssue(issueId, { download: opts.download, comments: opts.allComments })
     }
@@ -212,8 +218,8 @@ program
     console.log(`Name:    ${match.name}`)
     console.log(`Linear:  ${match.displayName}`)
     console.log(`Email:   ${match.email}`)
-    const githubLabel = github
-      ?? (match.gitHubUserId ? `(id: ${match.gitHubUserId}, could not resolve username)` : '(not linked)')
+    const githubLabel =
+      github ?? (match.gitHubUserId ? `(id: ${match.gitHubUserId}, could not resolve username)` : '(not linked)')
     console.log(`GitHub:  ${githubLabel}`)
   })
 

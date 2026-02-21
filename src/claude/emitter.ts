@@ -144,9 +144,7 @@ export class ActivityEmitter {
     if (!pending) return
     this.pendingToolUses.delete(block.tool_use_id)
 
-    const rawContent = typeof block.content === 'string'
-      ? block.content
-      : block.content.map((c) => c.text).join('\n')
+    const rawContent = typeof block.content === 'string' ? block.content : block.content.map((c) => c.text).join('\n')
 
     const mapper = TOOL_MAPPING[pending.name]
     const mapped = mapper?.(pending.input, rawContent)

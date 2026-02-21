@@ -36,10 +36,7 @@ function formatBashResult(command: string, result: string): string {
 
 function formatDiff(oldStr: string, newStr: string): string | undefined {
   if (!oldStr && !newStr) return undefined
-  const lines = [
-    ...oldStr.split('\n').map((l) => `- ${l}`),
-    ...newStr.split('\n').map((l) => `+ ${l}`),
-  ]
+  const lines = [...oldStr.split('\n').map((l) => `- ${l}`), ...newStr.split('\n').map((l) => `+ ${l}`)]
   return codeBlock(lines.join('\n'), 'diff')
 }
 
@@ -65,7 +62,10 @@ export const TOOL_MAPPING: Record<string, ToolMapper> = {
     const desc = safeString(input.description)
     if (!result) return { action: 'Delegated subtask', parameter: desc }
 
-    const responseText = result.replace(/agentId:.*\n?/g, '').replace(/<usage>[\s\S]*?<\/usage>/g, '').trim()
+    const responseText = result
+      .replace(/agentId:.*\n?/g, '')
+      .replace(/<usage>[\s\S]*?<\/usage>/g, '')
+      .trim()
     return withResult({ action: 'Delegated subtask', parameter: desc }, responseText || undefined)
   },
   WebFetch: (input, result) => withResult({ action: 'Fetched URL', parameter: safeString(input.url) }, result),

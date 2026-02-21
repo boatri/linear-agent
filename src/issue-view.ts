@@ -109,10 +109,7 @@ export async function fetchIssue(issueId: string): Promise<IssueDetails> {
   }
 }
 
-export async function viewIssue(
-  issueId: string,
-  opts: { download?: boolean; comments?: boolean } = {},
-): Promise<void> {
+export async function viewIssue(issueId: string, opts: { download?: boolean; comments?: boolean } = {}): Promise<void> {
   const shouldDownload = opts.download !== false
   const expandComments = opts.comments ?? false
 
@@ -237,10 +234,7 @@ function formatCommentHeader(author: string, date: string, indent = ''): string 
   return `${indent}${chalk.bold.underline(`@${author}`)} ${chalk.underline(`commented ${date}`)}`
 }
 
-function formatIssueHierarchyAsMarkdown(
-  parent: IssueRef | null | undefined,
-  children: IssueRef[] | undefined,
-): string {
+function formatIssueHierarchyAsMarkdown(parent: IssueRef | null | undefined, children: IssueRef[] | undefined): string {
   let md = ''
   if (parent) {
     md += `\n\n## Parent\n\n`
@@ -255,10 +249,7 @@ function formatIssueHierarchyAsMarkdown(
   return md
 }
 
-function formatAttachmentsAsMarkdown(
-  attachments: Attachment[],
-  localPaths?: Map<string, string>,
-): string {
+function formatAttachmentsAsMarkdown(attachments: Attachment[], localPaths?: Map<string, string>): string {
   if (attachments.length === 0) return ''
 
   let md = '\n\n## Attachments\n\n'
@@ -488,10 +479,7 @@ async function downloadIssueImages(
   return urlToPath
 }
 
-async function downloadAttachments(
-  issueIdentifier: string,
-  attachments: Attachment[],
-): Promise<Map<string, string>> {
+async function downloadAttachments(issueIdentifier: string, attachments: Attachment[]): Promise<Map<string, string>> {
   const urlToPath = new Map<string, string>()
   const issueDir = join(ATTACHMENT_CACHE_DIR, issueIdentifier)
   mkdirSync(issueDir, { recursive: true })
