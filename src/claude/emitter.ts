@@ -23,6 +23,12 @@ interface PendingTool {
   input: Record<string, unknown>
 }
 
+// Elicitation commands emit activities directly to Linear, so the watcher
+// suppresses its own action to avoid misordering in the timeline.
+function isElicitationCommand(toolName: string, input: Record<string, unknown>): boolean {
+  return toolName === 'Bash' && /^linear-agent\s+session\s+activity\s+elicitation\b/.test(String(input.command ?? ''))
+}
+
 export class ActivityEmitter {
   private readonly sessionId: string
   private readonly rateLimiter: RateLimiter
@@ -134,6 +140,8 @@ export class ActivityEmitter {
   private async emitToolUse(block: ToolUseBlock, client: LinearSdk): Promise<void> {
     this.pendingToolUses.set(block.id, { name: block.name, input: block.input })
 
+    if (isElicitationCommand(block.name, block.input)) return
+
     const mapper = TOOL_MAPPING[block.name]
     if (!mapper) return
 
@@ -163,6 +171,8 @@ export class ActivityEmitter {
     }
 
     await this.trackPlanUpdates(pending, rawContent, client)
+
+    if (isElicitationCommand(pending.name, pending.input)) return
 
     if (mapped) {
       await this.emit(client, { type: 'action', ...mapped })
