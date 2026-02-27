@@ -32,11 +32,12 @@ const issue = program.command('issue').description('Manage Linear issues')
 issue
   .command('view')
   .description('View issue details')
-  .argument('<issue-id>')
+  .option('--id <issue-id>', 'Issue ID (inferred from LINEAR_AGENT_SESSION_ID if not set)')
   .option('--no-download', 'Keep remote URLs instead of downloading files')
   .option('--all-comments', 'Expand all comment replies')
   .option('--json', 'Output raw JSON')
-  .action(async (issueId: string, opts: { download?: boolean; allComments?: boolean; json?: boolean }) => {
+  .action(async (opts: { id?: string; download?: boolean; allComments?: boolean; json?: boolean }) => {
+    const issueId = opts.id ?? await issueIdFromSession()
     const { viewIssue, fetchIssue } = await import('./issue-view')
     if (opts.json) {
       const data = await fetchIssue(issueId)
@@ -92,9 +93,10 @@ issue
 issue
   .command('move')
   .description('Move issue to workflow state')
-  .argument('<issue-id>')
   .argument('<state-name>')
-  .action(async (issueId: string, stateName: string) => {
+  .option('--id <issue-id>', 'Issue ID (inferred from LINEAR_AGENT_SESSION_ID if not set)')
+  .action(async (stateName: string, opts: { id?: string }) => {
+    const issueId = opts.id ?? await issueIdFromSession()
     const issue = await linear.issue(issueId)
     const team = await issue.team
     if (!team) {
@@ -117,13 +119,29 @@ issue
 issue
   .command('comment')
   .description('Post a comment on an issue')
-  .argument('<issue-id>')
   .argument('<body>')
-  .action(async (issueId: string, body: string) => {
+  .option('--id <issue-id>', 'Issue ID (inferred from LINEAR_AGENT_SESSION_ID if not set)')
+  .action(async (body: string, opts: { id?: string }) => {
+    const issueId = opts.id ?? await issueIdFromSession()
     const issue = await linear.issue(issueId)
     await linear.createComment({ issueId: issue.id, body })
     console.log(`Comment posted on ${issue.identifier}`)
   })
+
+async function issueIdFromSession(): Promise<string> {
+  const sessionId = process.env.LINEAR_AGENT_SESSION_ID
+  if (!sessionId) {
+    console.error('Error: No issue ID provided and LINEAR_AGENT_SESSION_ID is not set')
+    process.exit(1)
+  }
+  const session = await linear.agentSession(sessionId)
+  const issueId = session.issueId
+  if (!issueId) {
+    console.error(`Error: Session ${sessionId} is not associated with an issue`)
+    process.exit(1)
+  }
+  return issueId
+}
 
 function getSessionId(opts: { id?: string }): string {
   const sessionId = opts.id ?? process.env.LINEAR_AGENT_SESSION_ID
