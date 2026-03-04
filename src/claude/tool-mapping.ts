@@ -58,7 +58,7 @@ export const TOOL_MAPPING: Record<string, ToolMapper> = {
     if (input.glob) parameter += ` (${input.glob})`
     return withResult({ action: 'Searched for pattern', parameter }, result)
   },
-  Task: (input, result) => {
+  Agent: (input, result) => {
     const desc = safeString(input.description)
     if (!result) return { action: 'Delegated subtask', parameter: desc }
 
@@ -68,6 +68,7 @@ export const TOOL_MAPPING: Record<string, ToolMapper> = {
       .trim()
     return withResult({ action: 'Delegated subtask', parameter: desc }, responseText || undefined)
   },
+  Task: (...args) => TOOL_MAPPING.Agent(...args), // old name for Agent
   WebFetch: (input, result) => withResult({ action: 'Fetched URL', parameter: safeString(input.url) }, result),
   WebSearch: (input) => ({ action: 'Web search', parameter: safeString(input.query) }),
   TaskCreate: (input) => ({ action: 'Created task', parameter: safeString(input.subject) }),

@@ -20,6 +20,6 @@ describe("TOOL_MAPPING", () => {
     expect(TOOL_MAPPING.Bash({}).parameter).toBe("");
     expect(TOOL_MAPPING.Edit({}).parameter).toBe("");
     expect(TOOL_MAPPING.Grep({}).parameter).toBe("");
-    expect(TOOL_MAPPING.Task({}).parameter).toBe("");
+    expect(TOOL_MAPPING.Agent({}).parameter).toBe("");
   });
 });
