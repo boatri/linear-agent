@@ -143,9 +143,7 @@ export class ActivityEmitter {
     if (isElicitationCommand(block.name, block.input)) return
 
     const mapper = TOOL_MAPPING[block.name]
-    if (!mapper) return
-
-    const mapped = mapper(block.input)
+    const mapped = mapper?.(block.input) ?? { action: 'Called tool', parameter: block.name }
 
     await this.emit(client, { type: 'action', ...mapped }, true) // ephemeral — the completed action will follow
   }
@@ -158,7 +156,7 @@ export class ActivityEmitter {
     const rawContent = typeof block.content === 'string' ? block.content : block.content.map((c) => c.text).join('\n')
 
     const mapper = TOOL_MAPPING[pending.name]
-    const mapped = mapper?.(pending.input, rawContent)
+    const mapped = mapper?.(pending.input, rawContent) ?? { action: 'Called tool', parameter: pending.name }
 
     if (rawContent.includes('<tool_use_error>')) {
       await this.emitToolError(pending, mapped, client)
@@ -174,18 +172,16 @@ export class ActivityEmitter {
 
     if (isElicitationCommand(pending.name, pending.input)) return
 
-    if (mapped) {
-      await this.emit(client, { type: 'action', ...mapped })
-    }
+    await this.emit(client, { type: 'action', ...mapped })
   }
 
   private async emitToolError(
     pending: PendingTool,
-    mapped: ToolMapped | undefined,
+    mapped: ToolMapped,
     client: LinearSdk,
     detail?: string,
   ): Promise<void> {
-    const context = mapped?.parameter ? ` \`${mapped.parameter}\`` : ''
+    const context = mapped.parameter ? ` \`${mapped.parameter}\`` : ''
     const suffix = detail ? `:\n${detail}` : ''
     await this.emit(client, {
       type: 'error',
