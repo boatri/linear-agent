@@ -110,6 +110,33 @@ claude -p "work on this" --session-id $SESSION_ID
 kill $WATCHER_PID 2>/dev/null; wait $WATCHER_PID
 ```
 
+### Disabling Interactive Tools
+
+Claude Code has several tools that require interactive user input (`EnterPlanMode`, `ExitPlanMode`, `AskUserQuestion`, `EnterWorktree`). These tools don't work in headless `-p` mode — they fail with confirmation prompts that have no terminal to display on, causing error noise in the Linear timeline.
+
+Disable them via `--disallowed-tools` when launching Claude:
+
+```bash
+claude -p "work on this" \
+  --session-id $SESSION_ID \
+  --disallowed-tools EnterPlanMode ExitPlanMode AskUserQuestion EnterWorktree
+```
+
+Or in the project's `.claude/settings.json`:
+
+```json
+{
+  "permissions": {
+    "deny": [
+      "EnterPlanMode",
+      "ExitPlanMode",
+      "AskUserQuestion",
+      "EnterWorktree"
+    ]
+  }
+}
+```
+
 The watcher:
 - Polls for the JSONL file to appear (it may not exist yet when the watcher starts)
 - Discovers and tails linked successor session files automatically

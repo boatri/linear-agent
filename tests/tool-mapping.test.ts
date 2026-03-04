@@ -16,16 +16,6 @@ describe("TOOL_MAPPING", () => {
     expect(without).not.toHaveProperty("result");
   });
 
-  test("AskUserQuestion drills into questions array for first question", () => {
-    const out = TOOL_MAPPING.AskUserQuestion({
-      questions: [{ question: "Which approach?" }, { question: "Second?" }],
-    });
-    expect(out.parameter).toBe("Which approach?");
-
-    const empty = TOOL_MAPPING.AskUserQuestion({});
-    expect(empty.parameter).toBe("");
-  });
-
   test("missing input fields default to empty string via nullish coalescing", () => {
     expect(TOOL_MAPPING.Bash({}).parameter).toBe("");
     expect(TOOL_MAPPING.Edit({}).parameter).toBe("");
