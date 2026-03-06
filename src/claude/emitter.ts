@@ -29,6 +29,7 @@ function isElicitationCommand(toolName: string, input: Record<string, unknown>):
   return toolName === 'Bash' && /^linear-agent\s+session\s+activity\s+elicitation\b/.test(String(input.command ?? ''))
 }
 
+
 export class ActivityEmitter {
   private readonly sessionId: string
   private readonly rateLimiter: RateLimiter
@@ -143,7 +144,8 @@ export class ActivityEmitter {
     if (isElicitationCommand(block.name, block.input)) return
 
     const mapper = TOOL_MAPPING[block.name]
-    const mapped = mapper?.(block.input) ?? { action: block.name, parameter: '' }
+    const mapped = mapper ? mapper(block.input) : { action: block.name, parameter: '' }
+    if (!mapped) return
 
     await this.emit(client, { type: 'action', ...mapped }, true) // ephemeral — the completed action will follow
   }
@@ -156,17 +158,18 @@ export class ActivityEmitter {
     const rawContent = typeof block.content === 'string' ? block.content : block.content.map((c) => c.text).join('\n')
 
     const mapper = TOOL_MAPPING[pending.name]
-    const mapped = mapper?.(pending.input, rawContent) ?? { action: pending.name, parameter: '' }
+    const mapped = mapper ? mapper(pending.input, rawContent) : { action: pending.name, parameter: '' }
 
     if (block.is_error) {
+      const errorMapped = mapped ?? { action: pending.name, parameter: '' }
       const detail = rawContent.replace(/<\/?tool_use_error>/g, '').trim() || undefined
-      await this.emitToolError(pending, mapped, client, detail)
+      await this.emitToolError(pending, errorMapped, client, detail)
       return
     }
 
     await this.trackPlanUpdates(pending, rawContent, client)
 
-    if (isElicitationCommand(pending.name, pending.input)) return
+    if (isElicitationCommand(pending.name, pending.input) || !mapped) return
 
     await this.emit(client, { type: 'action', ...mapped })
   }
@@ -185,20 +188,9 @@ export class ActivityEmitter {
     })
   }
 
-  private async trackPlanUpdates(pending: PendingTool, resultText: string, client: LinearSdk): Promise<void> {
-    switch (pending.name) {
-      case 'TaskCreate':
-        this.planTracker.handleTaskCreate(pending.input, resultText)
-        break
-      case 'TaskUpdate':
-        this.planTracker.handleTaskUpdate(pending.input)
-        break
-      case 'TodoWrite':
-        this.planTracker.handleTodoWrite(pending.input)
-        break
-      default:
-        return
-    }
+  private async trackPlanUpdates(pending: PendingTool, _resultText: string, client: LinearSdk): Promise<void> {
+    if (pending.name !== 'TodoWrite') return
+    this.planTracker.handleTodoWrite(pending.input)
     await this.pushPlan(client)
   }
 

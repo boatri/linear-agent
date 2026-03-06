@@ -374,73 +374,8 @@ describe("ActivityEmitter", () => {
   });
 
   describe("plan tracker integration", () => {
-    test("TaskCreate result triggers plan update", async () => {
-      const { client, planUpdates } = mockClient();
-      const emitter = new ActivityEmitter(SESSION);
-
-      await emitter.process(
-        assistant({
-          type: "tool_use",
-          id: "tu-1",
-          name: "TaskCreate",
-          input: { subject: "Implement feature" },
-        }),
-        client,
-      );
-
-      await emitter.process(
-        userEntry({
-          type: "tool_result",
-          tool_use_id: "tu-1",
-          content: "Task #1 created successfully",
-        }),
-        client,
-      );
-
-      expect(planUpdates).toHaveLength(1);
-      expect(planUpdates[0].plan).toEqual([
-        { content: "Implement feature", status: "pending" },
-      ]);
-    });
-
-    test("TaskUpdate result triggers plan update", async () => {
-      const { client, planUpdates } = mockClient();
-      const emitter = new ActivityEmitter(SESSION);
-
-      // Create first
-      await emitter.process(
-        assistant({ type: "tool_use", id: "tu-1", name: "TaskCreate", input: { subject: "Step 1" } }),
-        client,
-      );
-      await emitter.process(
-        userEntry({ type: "tool_result", tool_use_id: "tu-1", content: "Task #1 ok" }),
-        client,
-      );
-
-      // Then update
-      await emitter.process(
-        assistant({
-          type: "tool_use",
-          id: "tu-2",
-          name: "TaskUpdate",
-          input: { taskId: "1", status: "completed" },
-        }),
-        client,
-      );
-      await emitter.process(
-        userEntry({ type: "tool_result", tool_use_id: "tu-2", content: "Updated" }),
-        client,
-      );
-
-      // Two plan updates: one after create, one after update
-      expect(planUpdates).toHaveLength(2);
-      expect(planUpdates[1].plan).toEqual([
-        { content: "Step 1", status: "completed" },
-      ]);
-    });
-
-    test("TodoWrite result replaces plan", async () => {
-      const { client, planUpdates } = mockClient();
+    test("TodoWrite result updates plan and suppresses activity", async () => {
+      const { client, planUpdates, activities } = mockClient();
       const emitter = new ActivityEmitter(SESSION);
 
       await emitter.process(
@@ -462,10 +397,35 @@ describe("ActivityEmitter", () => {
         { content: "A", status: "pending" },
         { content: "B", status: "completed" },
       ]);
+      // No activity emitted for plan tools
+      expect(activities).toHaveLength(0);
     });
 
-    test("error result on TaskCreate does not update plan", async () => {
+    test("TodoWrite error still emits error activity", async () => {
       const { client, planUpdates, activities } = mockClient();
+      const emitter = new ActivityEmitter(SESSION);
+
+      await emitter.process(
+        assistant({ type: "tool_use", id: "tu-1", name: "TodoWrite", input: { todos: [] } }),
+        client,
+      );
+      await emitter.process(
+        userEntry({
+          type: "tool_result",
+          tool_use_id: "tu-1",
+          content: "Something went wrong",
+          is_error: true,
+        }),
+        client,
+      );
+
+      expect(planUpdates).toHaveLength(0);
+      expect(activities).toHaveLength(1);
+      expect((activities[0].content as any).type).toBe("error");
+    });
+
+    test("TaskCreate/TaskUpdate are shown as regular actions", async () => {
+      const { client, activities } = mockClient();
       const emitter = new ActivityEmitter(SESSION);
 
       await emitter.process(
@@ -473,20 +433,14 @@ describe("ActivityEmitter", () => {
         client,
       );
       await emitter.process(
-        userEntry({
-          type: "tool_result",
-          tool_use_id: "tu-1",
-          content: "Task creation failed",
-          is_error: true,
-        }),
+        userEntry({ type: "tool_result", tool_use_id: "tu-1", content: "Task #1 ok" }),
         client,
       );
 
-      // Plan should NOT be updated (error path skips plan tracker)
-      // Wait — actually looking at the source, the plan tracker IS called before the error check.
-      // The code does: if (!block.is_error) { switch... planTracker... }
-      // So error results skip the plan tracker. Good.
-      expect(planUpdates).toHaveLength(0);
+      // Ephemeral + final action
+      expect(activities).toHaveLength(2);
+      expect((activities[1].content as any).action).toBe("Created task");
+      expect((activities[1].content as any).parameter).toBe("X");
     });
   });
 

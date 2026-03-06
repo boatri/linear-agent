@@ -4,7 +4,7 @@ export interface ToolMapped {
   result?: string
 }
 
-type ToolMapper = (input: Record<string, unknown>, result?: string) => ToolMapped
+type ToolMapper = (input: Record<string, unknown>, result?: string) => ToolMapped | null
 
 function withResult(base: { action: string; parameter: string }, result?: string): ToolMapped {
   if (result) return { ...base, result }
@@ -71,10 +71,15 @@ export const TOOL_MAPPING: Record<string, ToolMapper> = {
   Task: (...args) => TOOL_MAPPING.Agent(...args), // old name for Agent
   WebFetch: (input, result) => withResult({ action: 'Fetched URL', parameter: safeString(input.url) }, result),
   WebSearch: (input) => ({ action: 'Web search', parameter: safeString(input.query) }),
-  TaskCreate: (input) => ({ action: 'Created task', parameter: safeString(input.subject) }),
-  TaskUpdate: (input) => ({ action: 'Updated task', parameter: safeString(input.taskId) }),
   Skill: (input) => ({ action: 'Invoked skill', parameter: safeString(input.skill) }),
   NotebookEdit: (input) => ({ action: 'Edited notebook', parameter: safeString(input.notebook_path) }),
   ToolSearch: (input) => ({ action: 'Searched tools', parameter: safeString(input.query) }),
   TaskOutput: (input) => ({ action: 'Read task output', parameter: safeString(input.task_id) }),
+  TaskGet: (input) => ({ action: 'Checked task', parameter: safeString(input.taskId) }),
+  TaskList: () => ({ action: 'Listed tasks', parameter: '' }),
+  TaskStop: (input) => ({ action: 'Stopped task', parameter: safeString(input.task_id) }),
+  TaskCreate: (input) => ({ action: 'Created task', parameter: safeString(input.subject) }),
+  TaskUpdate: (input) => ({ action: 'Updated task', parameter: safeString(input.taskId) }),
+  // TodoWrite updates the Linear plan directly via PlanTracker, suppress from activity timeline
+  TodoWrite: () => null,
 }
