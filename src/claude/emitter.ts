@@ -143,7 +143,7 @@ export class ActivityEmitter {
     if (isElicitationCommand(block.name, block.input)) return
 
     const mapper = TOOL_MAPPING[block.name]
-    const mapped = mapper?.(block.input) ?? { action: 'Called tool', parameter: block.name }
+    const mapped = mapper?.(block.input) ?? { action: block.name, parameter: '' }
 
     await this.emit(client, { type: 'action', ...mapped }, true) // ephemeral — the completed action will follow
   }
@@ -156,15 +156,11 @@ export class ActivityEmitter {
     const rawContent = typeof block.content === 'string' ? block.content : block.content.map((c) => c.text).join('\n')
 
     const mapper = TOOL_MAPPING[pending.name]
-    const mapped = mapper?.(pending.input, rawContent) ?? { action: 'Called tool', parameter: pending.name }
-
-    if (rawContent.includes('<tool_use_error>')) {
-      await this.emitToolError(pending, mapped, client)
-      return
-    }
+    const mapped = mapper?.(pending.input, rawContent) ?? { action: pending.name, parameter: '' }
 
     if (block.is_error) {
-      await this.emitToolError(pending, mapped, client, rawContent)
+      const detail = rawContent.replace(/<\/?tool_use_error>/g, '').trim() || undefined
+      await this.emitToolError(pending, mapped, client, detail)
       return
     }
 

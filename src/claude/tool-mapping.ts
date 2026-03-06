@@ -75,4 +75,6 @@ export const TOOL_MAPPING: Record<string, ToolMapper> = {
   TaskUpdate: (input) => ({ action: 'Updated task', parameter: safeString(input.taskId) }),
   Skill: (input) => ({ action: 'Invoked skill', parameter: safeString(input.skill) }),
   NotebookEdit: (input) => ({ action: 'Edited notebook', parameter: safeString(input.notebook_path) }),
+  ToolSearch: (input) => ({ action: 'Searched tools', parameter: safeString(input.query) }),
+  TaskOutput: (input) => ({ action: 'Read task output', parameter: safeString(input.task_id) }),
 }

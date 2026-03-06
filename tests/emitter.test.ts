@@ -232,7 +232,7 @@ describe("ActivityEmitter", () => {
       expect(activities).toHaveLength(1);
       expect(activities[0]).toEqual({
         agentSessionId: SESSION,
-        content: { type: "action", action: "Called tool", parameter: "SomeUnknownTool" },
+        content: { type: "action", action: "SomeUnknownTool", parameter: "" },
         ephemeral: true,
       });
 
@@ -246,8 +246,8 @@ describe("ActivityEmitter", () => {
       );
 
       expect(activities).toHaveLength(2);
-      expect((activities[1].content as any).action).toBe("Called tool");
-      expect((activities[1].content as any).parameter).toBe("SomeUnknownTool");
+      expect((activities[1].content as any).action).toBe("SomeUnknownTool");
+      expect((activities[1].content as any).parameter).toBe("");
     });
 
     test("tool_result with array content joins text blocks", async () => {
