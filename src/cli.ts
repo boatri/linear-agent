@@ -2,6 +2,7 @@
 import chalk from 'chalk'
 import { Command } from 'commander'
 import { chmodSync, renameSync } from 'fs'
+import { z } from 'zod'
 import { linear } from './linear'
 import { resolveGitHubLogin } from './github'
 import { Watcher } from './claude/watcher'
@@ -10,6 +11,29 @@ import { acquireLock } from './claude/lock'
 // Read version from package.json at build time via Bun's bundler
 const { version } = await import('../package.json')
 const program = new Command().name('linear-agent').version(version, '-v, --version').description('Stream Claude Code sessions to Linear')
+
+program.option('--json', 'Output structured JSON for all commands')
+
+function isJson(): boolean {
+  return program.opts().json === true
+}
+
+function output(data: Record<string, unknown>): void {
+  if (isJson()) {
+    console.log(JSON.stringify({ ok: true, ...data }, null, 2))
+  } else {
+    // Callers handle human-readable output themselves
+  }
+}
+
+function fail(code: string, message: string, details?: Record<string, unknown>): never {
+  if (isJson()) {
+    console.log(JSON.stringify({ ok: false, error: { code, message, ...details } }, null, 2))
+  } else {
+    console.error(`Error: ${message}`)
+  }
+  process.exit(1)
+}
 
 const watch = program.command('watch').description('Watch an agent backend and emit activities to Linear')
 
@@ -35,23 +59,22 @@ issue
   .option('--id <issue-id>', 'Issue ID (inferred from LINEAR_AGENT_SESSION_ID if not set)')
   .option('--no-download', 'Keep remote URLs instead of downloading files')
   .option('--all-comments', 'Expand all comment replies')
-  .option('--json', 'Output raw JSON')
-  .action(async (opts: { id?: string; download?: boolean; allComments?: boolean; json?: boolean }) => {
+  .option('--fields <fields>', 'Comma-separated list of fields to include (requires --json)')
+  .action(async (opts: { id?: string; download?: boolean; allComments?: boolean; fields?: string }) => {
     const issueId = opts.id ?? await issueIdFromSession()
     const { viewIssue, fetchIssue } = await import('./issue-view')
-    if (opts.json) {
+    if (isJson()) {
       const data = await fetchIssue(issueId)
       let github: string | null = null
       if (data.assignee?.gitHubUserId) {
         github = await resolveGitHubLogin(data.assignee.gitHubUserId)
       }
-      console.log(
-        JSON.stringify(
-          { ...data, assignee: data.assignee ? { ...data.assignee, gitHubUserName: github } : null },
-          null,
-          2,
-        ),
-      )
+      let result: Record<string, unknown> = { ...data, assignee: data.assignee ? { ...data.assignee, gitHubUserName: github } : null }
+      if (opts.fields) {
+        const allowed = new Set(opts.fields.split(',').map((f) => f.trim()))
+        result = Object.fromEntries(Object.entries(result).filter(([k]) => allowed.has(k)))
+      }
+      output(result)
     } else {
       await viewIssue(issueId, { download: opts.download, comments: opts.allComments })
     }
@@ -61,32 +84,31 @@ issue
   .command('list')
   .description('List issues')
   .option('--state <name>', 'Filter by workflow state')
-  .option('--json', 'Output raw JSON')
-  .action(async (opts: { state?: string; json?: boolean }) => {
+  .action(async (opts: { state?: string }) => {
     const issues = await linear.issues({
       filter: opts.state ? { state: { name: { eq: opts.state } } } : undefined,
       first: 50,
     })
 
-    if (opts.json) {
-      const items = await Promise.all(
-        issues.nodes.map(async (i) => {
-          const state = await i.state
-          return { identifier: i.identifier, title: i.title, state: state?.name ?? null }
-        }),
-      )
-      console.log(JSON.stringify(items, null, 2))
+    const items = await Promise.all(
+      issues.nodes.map(async (i) => {
+        const state = await i.state
+        return { identifier: i.identifier, title: i.title, state: state?.name ?? null }
+      }),
+    )
+
+    if (isJson()) {
+      output({ issues: items })
       return
     }
 
-    if (issues.nodes.length === 0) {
+    if (items.length === 0) {
       console.log('No issues found.')
       return
     }
 
-    for (const issue of issues.nodes) {
-      const state = await issue.state
-      console.log(`${issue.identifier}\t${state?.name ?? '?'}\t${issue.title}`)
+    for (const item of items) {
+      console.log(`${item.identifier}\t${item.state ?? '?'}\t${item.title}`)
     }
   })
 
@@ -100,20 +122,22 @@ issue
     const issue = await linear.issue(issueId)
     const team = await issue.team
     if (!team) {
-      console.error("Error: Could not resolve issue's team")
-      process.exit(1)
+      fail('TEAM_NOT_FOUND', "Could not resolve issue's team")
     }
 
     const states = await team.states()
     const target = states.nodes.find((s) => s.name.toLowerCase() === stateName.toLowerCase())
     if (!target) {
-      const available = states.nodes.map((s) => s.name).join(', ')
-      console.error(`Error: State "${stateName}" not found. Available: ${available}`)
-      process.exit(1)
+      const available = states.nodes.map((s) => s.name)
+      fail('STATE_NOT_FOUND', `State "${stateName}" not found`, { available })
     }
 
     await linear.updateIssue(issue.id, { stateId: target.id })
-    console.log(`Moved ${issue.identifier} to "${target.name}"`)
+    if (isJson()) {
+      output({ identifier: issue.identifier, state: target.name })
+    } else {
+      console.log(`Moved ${issue.identifier} to "${target.name}"`)
+    }
   })
 
 issue
@@ -124,21 +148,23 @@ issue
   .action(async (body: string, opts: { id?: string }) => {
     const issueId = opts.id ?? await issueIdFromSession()
     const issue = await linear.issue(issueId)
-    await linear.createComment({ issueId: issue.id, body })
-    console.log(`Comment posted on ${issue.identifier}`)
+    const payload = await linear.createComment({ issueId: issue.id, body })
+    if (isJson()) {
+      output({ identifier: issue.identifier, commentId: payload.commentId })
+    } else {
+      console.log(`Comment posted on ${issue.identifier}`)
+    }
   })
 
 async function issueIdFromSession(): Promise<string> {
   const sessionId = process.env.LINEAR_AGENT_SESSION_ID
   if (!sessionId) {
-    console.error('Error: No issue ID provided and LINEAR_AGENT_SESSION_ID is not set')
-    process.exit(1)
+    fail('MISSING_ISSUE_ID', 'No issue ID provided and LINEAR_AGENT_SESSION_ID is not set')
   }
   const session = await linear.agentSession(sessionId)
   const issueId = session.issueId
   if (!issueId) {
-    console.error(`Error: Session ${sessionId} is not associated with an issue`)
-    process.exit(1)
+    fail('MISSING_ISSUE_ID', `Session ${sessionId} is not associated with an issue`)
   }
   return issueId
 }
@@ -146,8 +172,7 @@ async function issueIdFromSession(): Promise<string> {
 function getSessionId(opts: { id?: string }): string {
   const sessionId = opts.id ?? process.env.LINEAR_AGENT_SESSION_ID
   if (!sessionId) {
-    console.error('Error: Session ID required — pass --id <id> or set LINEAR_AGENT_SESSION_ID')
-    process.exit(1)
+    fail('MISSING_SESSION_ID', 'Session ID required — pass --id <id> or set LINEAR_AGENT_SESSION_ID')
   }
   return sessionId
 }
@@ -167,10 +192,15 @@ session
     await linear.updateAgentSession(sessionId, {
       addedExternalUrls: [{ label: label ?? '', url }],
     })
-    console.log(`URL added: ${url}`)
+    if (isJson()) {
+      output({ url, label: label ?? '' })
+    } else {
+      console.log(`URL added: ${url}`)
+    }
   })
 
 const ACTIVITY_TYPES = ['thought', 'action', 'error', 'response', 'elicitation'] as const
+const ActivityTypeEnum = z.enum(ACTIVITY_TYPES)
 
 session
   .command('activity')
@@ -178,17 +208,21 @@ session
   .argument('<type>', `Activity type (${ACTIVITY_TYPES.join('|')})`)
   .argument('<body>')
   .action(async (type: string, body: string) => {
-    if (!ACTIVITY_TYPES.includes(type as (typeof ACTIVITY_TYPES)[number])) {
-      console.error(`Error: Invalid activity type: ${type}. Must be one of: ${ACTIVITY_TYPES.join(', ')}`)
-      process.exit(1)
+    const parsed = ActivityTypeEnum.safeParse(type)
+    if (!parsed.success) {
+      fail('INVALID_ACTIVITY_TYPE', `Invalid activity type: ${type}`, { validTypes: [...ACTIVITY_TYPES] })
     }
 
     const sessionId = getSessionId(session.opts())
     await linear.createAgentActivity({
       agentSessionId: sessionId,
-      content: { type, body },
+      content: { type: parsed.data, body },
     })
-    console.log(`Activity emitted: ${type}`)
+    if (isJson()) {
+      output({ type: parsed.data, sessionId })
+    } else {
+      console.log(`Activity emitted: ${type}`)
+    }
   })
 
 program
@@ -197,9 +231,20 @@ program
   .argument('<query>')
   .option('-v, --variables <json>', 'Variables as JSON string')
   .action(async (query: string, opts: { variables?: string }) => {
-    const variables = opts.variables ? JSON.parse(opts.variables) : undefined
+    let variables: unknown
+    if (opts.variables) {
+      try {
+        variables = JSON.parse(opts.variables)
+      } catch {
+        fail('INVALID_JSON', `Failed to parse --variables as JSON: ${opts.variables}`)
+      }
+    }
     const result = await linear.query(query, variables)
-    console.log(JSON.stringify(result, null, 2))
+    if (isJson()) {
+      output({ data: result })
+    } else {
+      console.log(JSON.stringify(result, null, 2))
+    }
   })
 
 type LinearUser = {
@@ -220,20 +265,18 @@ program
   .command('user')
   .description('Look up a Linear user and their linked GitHub account')
   .argument('<name>', 'Linear display name or username to search for')
-  .option('--json', 'Output raw JSON')
-  .action(async (name: string, opts: { json?: boolean }) => {
+  .action(async (name: string) => {
     const result = await linear.query<{ users: { nodes: LinearUser[] } }>(USER_QUERY, { name })
 
     const match = result.users.nodes[0]
     if (!match) {
-      console.error(`Error: No user found matching "${name}"`)
-      process.exit(1)
+      fail('USER_NOT_FOUND', `No user found matching "${name}"`)
     }
 
     const github = match.gitHubUserId ? await resolveGitHubLogin(match.gitHubUserId) : null
 
-    if (opts.json) {
-      console.log(JSON.stringify({ ...match, gitHubUserName: github }, null, 2))
+    if (isJson()) {
+      output({ ...match, gitHubUserName: github })
       return
     }
 
@@ -253,8 +296,7 @@ program
     const file = Bun.file(filePath)
 
     if (!(await file.exists())) {
-      console.error(`Error: File not found: ${filePath}`)
-      process.exit(1)
+      fail('FILE_NOT_FOUND', `File not found: ${filePath}`)
     }
 
     const filename = filePath.split('/').pop()!
@@ -283,8 +325,7 @@ program
     )
 
     if (!result.fileUpload.success) {
-      console.error('Error: fileUpload mutation failed')
-      process.exit(1)
+      fail('UPLOAD_FAILED', 'fileUpload mutation failed')
     }
 
     const { uploadUrl, assetUrl, headers } = result.fileUpload.uploadFile
@@ -303,11 +344,14 @@ program
     })
 
     if (!putResponse.ok) {
-      console.error(`Error: Upload failed (${putResponse.status})`)
-      process.exit(1)
+      fail('UPLOAD_FAILED', `Upload failed (${putResponse.status})`)
     }
 
-    console.log(assetUrl)
+    if (isJson()) {
+      output({ assetUrl, filename })
+    } else {
+      console.log(assetUrl)
+    }
   })
 
 const REPO = 'membranehq/linear-agent'
@@ -325,17 +369,19 @@ program
   .action(async () => {
     const current = version
 
-    // Fetch latest version from GitHub API
     const releaseResp = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`)
     if (!releaseResp.ok) {
-      console.error(`Error: Failed to check for updates (${releaseResp.status})`)
-      process.exit(1)
+      fail('UNEXPECTED_ERROR', `Failed to check for updates (${releaseResp.status})`)
     }
     const release = (await releaseResp.json()) as { tag_name: string }
     const latest = release.tag_name.replace(/^v/, '')
 
     if (current === latest) {
-      console.log(`Already up to date ${chalk.dim(`(${current})`)}`)
+      if (isJson()) {
+        output({ version: current, updated: false })
+      } else {
+        console.log(`Already up to date ${chalk.dim(`(${current})`)}`)
+      }
       return
     }
 
@@ -343,19 +389,23 @@ program
     const tmpPath = `${binPath}.tmp`
     const asset = getBinaryName()
     const url = `https://github.com/${REPO}/releases/latest/download/${asset}`
-    console.log(`Updating ${chalk.dim(current)} → ${chalk.green(latest)}...`)
+    if (!isJson()) {
+      console.log(`Updating ${chalk.dim(current)} → ${chalk.green(latest)}...`)
+    }
     const resp = await fetch(url, { redirect: 'follow' })
     if (!resp.ok) {
-      console.error(`Error: Failed to download (${resp.status})`)
-      process.exit(1)
+      fail('UNEXPECTED_ERROR', `Failed to download (${resp.status})`)
     }
     await Bun.write(tmpPath, resp)
     chmodSync(tmpPath, 0o755)
     renameSync(tmpPath, binPath)
-    console.log(`Updated to ${chalk.green(latest)}`)
+    if (isJson()) {
+      output({ version: latest, updated: true })
+    } else {
+      console.log(`Updated to ${chalk.green(latest)}`)
+    }
   })
 
 program.parseAsync().catch((err) => {
-  console.error(`Error: ${err.message ?? err}`)
-  process.exit(1)
+  fail('UNEXPECTED_ERROR', err.message ?? String(err))
 })
