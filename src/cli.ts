@@ -528,6 +528,7 @@ program
   })
 
 type LinearUser = {
+  id: string
   name: string
   displayName: string
   email: string
@@ -538,7 +539,7 @@ const USER_QUERY = `query FindUser($name: String!) {
   users(filter: { or: [
     { displayName: { eqIgnoreCase: $name } },
     { name: { eqIgnoreCase: $name } }
-  ] }) { nodes { name displayName email gitHubUserId } }
+  ] }) { nodes { id name displayName email gitHubUserId } }
 }`
 
 program
