@@ -406,7 +406,10 @@ issue
       return
     }
 
-    await linear.updateIssue(issueObj.id, input)
+    await linear.query(
+      `mutation($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }`,
+      { id: issueObj.id, input },
+    )
 
     if (isJson()) {
       output({ identifier: issueObj.identifier, updated: summary })
@@ -528,6 +531,7 @@ program
   })
 
 type LinearUser = {
+  id: string
   name: string
   displayName: string
   email: string
@@ -538,7 +542,7 @@ const USER_QUERY = `query FindUser($name: String!) {
   users(filter: { or: [
     { displayName: { eqIgnoreCase: $name } },
     { name: { eqIgnoreCase: $name } }
-  ] }) { nodes { name displayName email gitHubUserId } }
+  ] }) { nodes { id name displayName email gitHubUserId } }
 }`
 
 program
