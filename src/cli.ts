@@ -80,39 +80,7 @@ issue
     }
   })
 
-issue
-  .command('list')
-  .description('List issues')
-  .option('--state <name>', 'Filter by workflow state')
-  .action(async (opts: { state?: string }) => {
-    const issues = await linear.issues({
-      filter: opts.state ? { state: { name: { eq: opts.state } } } : undefined,
-      first: 50,
-    })
-
-    const items = await Promise.all(
-      issues.nodes.map(async (i) => {
-        const state = await i.state
-        return { identifier: i.identifier, title: i.title, state: state?.name ?? null }
-      }),
-    )
-
-    if (isJson()) {
-      output({ issues: items })
-      return
-    }
-
-    if (items.length === 0) {
-      console.log('No issues found.')
-      return
-    }
-
-    for (const item of items) {
-      console.log(`${item.identifier}\t${item.state ?? '?'}\t${item.title}`)
-    }
-  })
-
-const ISSUE_SEARCH_FIELDS = `
+const ISSUE_LIST_FIELDS = `
   identifier title
   state { name }
   priority
@@ -120,7 +88,7 @@ const ISSUE_SEARCH_FIELDS = `
   labels(first: 20) { nodes { name } }
 `
 
-type SearchResult = {
+type IssueListResult = {
   identifier: string
   title: string
   state: { name: string }
@@ -129,22 +97,7 @@ type SearchResult = {
   labels: { nodes: { name: string }[] }
 }
 
-function buildIssueFilter(opts: { state?: string; assignee?: string; label?: string; priority?: string; project?: string; team?: string }): Record<string, unknown> {
-  const filter: Record<string, unknown> = {}
-  if (opts.state) filter.state = { name: { eqIgnoreCase: opts.state } }
-  if (opts.assignee) filter.assignee = { name: { eqIgnoreCase: opts.assignee } }
-  if (opts.label) filter.labels = { name: { eqIgnoreCase: opts.label } }
-  if (opts.priority) {
-    const p = parseInt(opts.priority, 10)
-    if (isNaN(p) || p < 0 || p > 4) fail('INVALID_PRIORITY', `Priority must be 0-4, got "${opts.priority}"`)
-    filter.priority = { eq: p }
-  }
-  if (opts.project) filter.project = { name: { eqIgnoreCase: opts.project } }
-  if (opts.team) filter.team = { key: { eqIgnoreCase: opts.team } }
-  return filter
-}
-
-function formatSearchResults(nodes: SearchResult[]) {
+function formatIssueListResults(nodes: IssueListResult[]) {
   return nodes.map((i) => ({
     identifier: i.identifier,
     title: i.title,
@@ -156,8 +109,8 @@ function formatSearchResults(nodes: SearchResult[]) {
 }
 
 issue
-  .command('search')
-  .description('Search issues by text with optional filters')
+  .command('list')
+  .description('List and search issues')
   .argument('[query]', 'Free-text search (searches title, description, comments, identifier)')
   .option('--state <name>', 'Filter by workflow state')
   .option('--assignee <name>', 'Filter by assignee name')
@@ -167,29 +120,39 @@ issue
   .option('--team <key>', 'Filter by team key')
   .option('--limit <n>', 'Max results (default: 20)', '20')
   .action(async (query: string | undefined, opts: { state?: string; assignee?: string; label?: string; priority?: string; project?: string; team?: string; limit: string }) => {
-    const filter = buildIssueFilter(opts)
+    const filter: Record<string, unknown> = {}
+    if (opts.state) filter.state = { name: { eqIgnoreCase: opts.state } }
+    if (opts.assignee) filter.assignee = { name: { eqIgnoreCase: opts.assignee } }
+    if (opts.label) filter.labels = { name: { eqIgnoreCase: opts.label } }
+    if (opts.priority) {
+      const p = parseInt(opts.priority, 10)
+      if (isNaN(p) || p < 0 || p > 4) fail('INVALID_PRIORITY', `Priority must be 0-4, got "${opts.priority}"`)
+      filter.priority = { eq: p }
+    }
+    if (opts.project) filter.project = { name: { eqIgnoreCase: opts.project } }
+    if (opts.team) filter.team = { key: { eqIgnoreCase: opts.team } }
+
     const limit = parseInt(opts.limit, 10) || 20
     const hasFilter = Object.keys(filter).length > 0
 
-    let items: ReturnType<typeof formatSearchResults>
+    let items: ReturnType<typeof formatIssueListResults>
 
     if (query) {
-      const result = await linear.query<{ searchIssues: { nodes: SearchResult[] } }>(
+      const result = await linear.query<{ searchIssues: { nodes: IssueListResult[] } }>(
         `query SearchIssues($term: String!, $filter: IssueFilter, $first: Int) {
-          searchIssues(term: $term, filter: $filter, first: $first) { nodes { ${ISSUE_SEARCH_FIELDS} } }
+          searchIssues(term: $term, filter: $filter, first: $first) { nodes { ${ISSUE_LIST_FIELDS} } }
         }`,
         { term: query, filter: hasFilter ? filter : undefined, first: limit },
       )
-      items = formatSearchResults(result.searchIssues.nodes)
+      items = formatIssueListResults(result.searchIssues.nodes)
     } else {
-      // No search term — use issues endpoint with filters only
-      const result = await linear.query<{ issues: { nodes: SearchResult[] } }>(
+      const result = await linear.query<{ issues: { nodes: IssueListResult[] } }>(
         `query ListIssues($filter: IssueFilter, $first: Int) {
-          issues(filter: $filter, first: $first) { nodes { ${ISSUE_SEARCH_FIELDS} } }
+          issues(filter: $filter, first: $first) { nodes { ${ISSUE_LIST_FIELDS} } }
         }`,
         { filter: hasFilter ? filter : undefined, first: limit },
       )
-      items = formatSearchResults(result.issues.nodes)
+      items = formatIssueListResults(result.issues.nodes)
     }
 
     if (isJson()) {
