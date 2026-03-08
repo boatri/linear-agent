@@ -111,7 +111,7 @@ function formatIssueListResults(nodes: IssueListResult[]) {
 issue
   .command('list')
   .description('List and search issues')
-  .argument('[query]', 'Free-text search (searches title, description, comments, identifier)')
+  .option('--search <text>', 'Free-text search (searches title, description, comments, identifier)')
   .option('--state <name>', 'Filter by workflow state')
   .option('--assignee <name>', 'Filter by assignee name')
   .option('--label <name>', 'Filter by label name')
@@ -119,7 +119,8 @@ issue
   .option('--project <name>', 'Filter by project name')
   .option('--team <key>', 'Filter by team key')
   .option('--limit <n>', 'Max results (default: 20)', '20')
-  .action(async (query: string | undefined, opts: { state?: string; assignee?: string; label?: string; priority?: string; project?: string; team?: string; limit: string }) => {
+  .action(async (opts: { search?: string; state?: string; assignee?: string; label?: string; priority?: string; project?: string; team?: string; limit: string }) => {
+    const query = opts.search
     const filter: Record<string, unknown> = {}
     if (opts.state) filter.state = { name: { eqIgnoreCase: opts.state } }
     if (opts.assignee) filter.assignee = { name: { eqIgnoreCase: opts.assignee } }

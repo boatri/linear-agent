@@ -146,16 +146,34 @@ The watcher:
 
 ### CLI Commands
 
-The CLI provides direct commands for managing Linear issues and sessions:
+The CLI provides direct commands for managing Linear issues and sessions. All commands support `--json` for structured output (returns `{ ok: true, ... }` on success, `{ ok: false, error: { code, message } }` on failure).
 
 ```bash
-# Issues
-linear-agent issue view LIN-123
-linear-agent issue list --state "In Progress"
-linear-agent issue move LIN-123 "In Review"
-linear-agent issue comment LIN-123 "Done. See PR #42."
+# View issue details (state, assignee, priority, labels, parent, sub-issues, etc.)
+linear-agent issue view --id LIN-123
+
+# List issues with filters and search
+linear-agent issue list
+linear-agent issue list --search "login bug" --label Bug --state Todo
+linear-agent issue list --priority 1 --assignee "Jane" --team ENG --limit 10
+
+# Update issue fields (supports --dry-run to validate without applying)
+linear-agent issue update --id LIN-123 --parent LIN-100
+linear-agent issue update --id LIN-123 --priority 2 --add-labels "Bug,P0" --due-date 2025-04-01
+linear-agent issue update --id LIN-123 --assignee "Jane" --state "In Progress"
+linear-agent issue update --id LIN-123 --assignee null --priority 0  # clear fields
+
+# Move issue to a workflow state
+linear-agent issue move "In Review" --id LIN-123
+
+# Post a comment
+linear-agent issue comment "Done. See PR #42." --id LIN-123
 
 # Sessions (pass --id or set LINEAR_AGENT_SESSION_ID env var)
 linear-agent session --id $SESSION_ID add-url "https://github.com/org/repo/pull/42"
 linear-agent session --id $SESSION_ID activity elicitation "Which auth provider should I use?"
+
+# Raw GraphQL queries for anything not covered by the commands above
+linear-agent graphql 'query { teams { nodes { key name } } }'
+linear-agent graphql 'query($id: String!) { issue(id: $id) { title state { name } } }' -v '{"id":"LIN-123"}'
 ```
