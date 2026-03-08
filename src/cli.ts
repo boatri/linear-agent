@@ -112,6 +112,101 @@ issue
     }
   })
 
+const ISSUE_SEARCH_FIELDS = `
+  identifier title
+  state { name }
+  priority
+  assignee { displayName }
+  labels(first: 20) { nodes { name } }
+`
+
+type SearchResult = {
+  identifier: string
+  title: string
+  state: { name: string }
+  priority: number
+  assignee?: { displayName: string } | null
+  labels: { nodes: { name: string }[] }
+}
+
+function buildIssueFilter(opts: { state?: string; assignee?: string; label?: string; priority?: string; project?: string; team?: string }): Record<string, unknown> {
+  const filter: Record<string, unknown> = {}
+  if (opts.state) filter.state = { name: { eqIgnoreCase: opts.state } }
+  if (opts.assignee) filter.assignee = { name: { eqIgnoreCase: opts.assignee } }
+  if (opts.label) filter.labels = { name: { eqIgnoreCase: opts.label } }
+  if (opts.priority) {
+    const p = parseInt(opts.priority, 10)
+    if (isNaN(p) || p < 0 || p > 4) fail('INVALID_PRIORITY', `Priority must be 0-4, got "${opts.priority}"`)
+    filter.priority = { eq: p }
+  }
+  if (opts.project) filter.project = { name: { eqIgnoreCase: opts.project } }
+  if (opts.team) filter.team = { key: { eqIgnoreCase: opts.team } }
+  return filter
+}
+
+function formatSearchResults(nodes: SearchResult[]) {
+  return nodes.map((i) => ({
+    identifier: i.identifier,
+    title: i.title,
+    state: i.state.name,
+    priority: i.priority,
+    assignee: i.assignee?.displayName ?? null,
+    labels: i.labels.nodes.map((l) => l.name),
+  }))
+}
+
+issue
+  .command('search')
+  .description('Search issues by text with optional filters')
+  .argument('[query]', 'Free-text search (searches title, description, comments, identifier)')
+  .option('--state <name>', 'Filter by workflow state')
+  .option('--assignee <name>', 'Filter by assignee name')
+  .option('--label <name>', 'Filter by label name')
+  .option('--priority <n>', 'Filter by priority (0-4)')
+  .option('--project <name>', 'Filter by project name')
+  .option('--team <key>', 'Filter by team key')
+  .option('--limit <n>', 'Max results (default: 20)', '20')
+  .action(async (query: string | undefined, opts: { state?: string; assignee?: string; label?: string; priority?: string; project?: string; team?: string; limit: string }) => {
+    const filter = buildIssueFilter(opts)
+    const limit = parseInt(opts.limit, 10) || 20
+    const hasFilter = Object.keys(filter).length > 0
+
+    let items: ReturnType<typeof formatSearchResults>
+
+    if (query) {
+      const result = await linear.query<{ searchIssues: { nodes: SearchResult[] } }>(
+        `query SearchIssues($term: String!, $filter: IssueFilter, $first: Int) {
+          searchIssues(term: $term, filter: $filter, first: $first) { nodes { ${ISSUE_SEARCH_FIELDS} } }
+        }`,
+        { term: query, filter: hasFilter ? filter : undefined, first: limit },
+      )
+      items = formatSearchResults(result.searchIssues.nodes)
+    } else {
+      // No search term — use issues endpoint with filters only
+      const result = await linear.query<{ issues: { nodes: SearchResult[] } }>(
+        `query ListIssues($filter: IssueFilter, $first: Int) {
+          issues(filter: $filter, first: $first) { nodes { ${ISSUE_SEARCH_FIELDS} } }
+        }`,
+        { filter: hasFilter ? filter : undefined, first: limit },
+      )
+      items = formatSearchResults(result.issues.nodes)
+    }
+
+    if (isJson()) {
+      output({ issues: items })
+      return
+    }
+
+    if (items.length === 0) {
+      console.log('No issues found.')
+      return
+    }
+
+    for (const item of items) {
+      console.log(`${item.identifier}\t${item.state}\t${item.title}`)
+    }
+  })
+
 issue
   .command('move')
   .description('Move issue to workflow state')
