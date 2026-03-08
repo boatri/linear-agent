@@ -156,6 +156,227 @@ issue
     }
   })
 
+type IssueUpdateOpts = {
+  id?: string
+  dryRun?: boolean
+  parent?: string
+  title?: string
+  description?: string
+  assignee?: string
+  state?: string
+  priority?: string
+  project?: string
+  dueDate?: string
+  estimate?: string
+  addLabels?: string
+  removeLabels?: string
+}
+
+issue
+  .command('update')
+  .description('Update issue fields')
+  .option('--id <issue-id>', 'Issue ID (inferred from LINEAR_AGENT_SESSION_ID if not set)')
+  .option('--dry-run', 'Validate and resolve all fields without applying changes')
+  .option('--parent <identifier>', 'Set parent issue (identifier like TEAM-123, or "null" to remove)')
+  .option('--title <title>', 'Update issue title')
+  .option('--description <text>', 'Update issue description (markdown)')
+  .option('--assignee <name>', 'Assign to user by name, or "null" to unassign')
+  .option('--state <name>', 'Move to workflow state')
+  .option('--priority <n>', 'Set priority (0=none, 1=urgent, 2=high, 3=normal, 4=low)')
+  .option('--project <name>', 'Set project by name, or "null" to remove')
+  .option('--due-date <date>', 'Set due date (YYYY-MM-DD), or "null" to remove')
+  .option('--estimate <points>', 'Set estimate points, or "null" to remove')
+  .option('--add-labels <names>', 'Add labels (comma-separated names)')
+  .option('--remove-labels <names>', 'Remove labels (comma-separated names)')
+  .action(async (opts: IssueUpdateOpts) => {
+    const issueId = opts.id ?? (await issueIdFromSession())
+    const issueObj = await linear.issue(issueId)
+    const input: Record<string, unknown> = {}
+    const summary: Record<string, unknown> = {}
+
+    if (opts.parent !== undefined) {
+      if (opts.parent.toLowerCase() === 'null') {
+        input.parentId = null
+        summary.parent = null
+      } else {
+        input.parentId = opts.parent
+        summary.parent = opts.parent
+      }
+    }
+
+    if (opts.title !== undefined) {
+      input.title = opts.title
+      summary.title = opts.title
+    }
+
+    if (opts.description !== undefined) {
+      input.description = opts.description
+      summary.description = opts.description
+    }
+
+    if (opts.assignee !== undefined) {
+      if (opts.assignee.toLowerCase() === 'null') {
+        input.assigneeId = null
+        summary.assignee = null
+      } else {
+        const result = await linear.query<{ users: { nodes: { id: string; name: string; displayName: string }[] } }>(
+          USER_QUERY,
+          { name: opts.assignee },
+        )
+        const match = result.users.nodes[0]
+        if (!match) fail('USER_NOT_FOUND', `No user found matching "${opts.assignee}"`)
+        input.assigneeId = match.id
+        summary.assignee = match.displayName
+      }
+    }
+
+    if (opts.state !== undefined) {
+      const team = await issueObj.team
+      if (!team) fail('TEAM_NOT_FOUND', "Could not resolve issue's team")
+      const states = await team.states()
+      const target = states.nodes.find((s) => s.name.toLowerCase() === opts.state!.toLowerCase())
+      if (!target) {
+        const available = states.nodes.map((s) => s.name)
+        fail('STATE_NOT_FOUND', `State "${opts.state}" not found`, { available })
+      }
+      input.stateId = target.id
+      summary.state = target.name
+    }
+
+    if (opts.priority !== undefined) {
+      const p = parseInt(opts.priority, 10)
+      if (isNaN(p) || p < 0 || p > 4) {
+        fail('INVALID_PRIORITY', `Priority must be 0-4, got "${opts.priority}"`)
+      }
+      input.priority = p
+      summary.priority = p
+    }
+
+    if (opts.project !== undefined) {
+      if (opts.project.toLowerCase() === 'null') {
+        input.projectId = null
+        summary.project = null
+      } else {
+        const result = await linear.query<{ projects: { nodes: { id: string; name: string }[] } }>(
+          `query FindProject($name: String!) {
+            projects(filter: { name: { eqIgnoreCase: $name } }, first: 1) {
+              nodes { id name }
+            }
+          }`,
+          { name: opts.project },
+        )
+        const match = result.projects.nodes[0]
+        if (!match) fail('PROJECT_NOT_FOUND', `No project found matching "${opts.project}"`)
+        input.projectId = match.id
+        summary.project = match.name
+      }
+    }
+
+    if (opts.dueDate !== undefined) {
+      if (opts.dueDate.toLowerCase() === 'null') {
+        input.dueDate = null
+        summary.dueDate = null
+      } else {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(opts.dueDate)) {
+          fail('INVALID_DATE', `Due date must be YYYY-MM-DD, got "${opts.dueDate}"`)
+        }
+        input.dueDate = opts.dueDate
+        summary.dueDate = opts.dueDate
+      }
+    }
+
+    if (opts.estimate !== undefined) {
+      if (opts.estimate.toLowerCase() === 'null') {
+        input.estimate = null
+        summary.estimate = null
+      } else {
+        const est = parseInt(opts.estimate, 10)
+        if (isNaN(est)) fail('INVALID_ESTIMATE', `Estimate must be a number, got "${opts.estimate}"`)
+        input.estimate = est
+        summary.estimate = est
+      }
+    }
+
+    if (opts.addLabels !== undefined) {
+      const labelNames = opts.addLabels.split(',').map((l) => l.trim()).filter(Boolean)
+      const allLabels = await resolveTeamLabels(issueObj)
+      const ids: string[] = []
+      const names: string[] = []
+      for (const name of labelNames) {
+        const label = allLabels.find((l) => l.name.toLowerCase() === name.toLowerCase())
+        if (!label) {
+          const available = allLabels.map((l) => l.name)
+          fail('LABEL_NOT_FOUND', `Label "${name}" not found`, { available })
+        }
+        ids.push(label.id)
+        names.push(label.name)
+      }
+      input.addedLabelIds = ids
+      summary.addedLabels = names
+    }
+
+    if (opts.removeLabels !== undefined) {
+      const labelNames = opts.removeLabels.split(',').map((l) => l.trim()).filter(Boolean)
+      const allLabels = await resolveTeamLabels(issueObj)
+      const ids: string[] = []
+      const names: string[] = []
+      for (const name of labelNames) {
+        const label = allLabels.find((l) => l.name.toLowerCase() === name.toLowerCase())
+        if (!label) {
+          const available = allLabels.map((l) => l.name)
+          fail('LABEL_NOT_FOUND', `Label "${name}" not found`, { available })
+        }
+        ids.push(label.id)
+        names.push(label.name)
+      }
+      input.removedLabelIds = ids
+      summary.removedLabels = names
+    }
+
+    if (Object.keys(input).length === 0) {
+      fail('NO_FIELDS', 'No fields to update — pass at least one option (e.g. --title, --parent, --priority)')
+    }
+
+    if (opts.dryRun) {
+      if (isJson()) {
+        output({ identifier: issueObj.identifier, dryRun: true, resolved: summary })
+      } else {
+        const parts = Object.entries(summary).map(([k, v]) => `${k}: ${v ?? 'removed'}`)
+        console.log(`Dry run for ${issueObj.identifier} — ${parts.join(', ')}`)
+      }
+      return
+    }
+
+    await linear.updateIssue(issueObj.id, input)
+
+    if (isJson()) {
+      output({ identifier: issueObj.identifier, updated: summary })
+    } else {
+      const parts = Object.entries(summary).map(([k, v]) => `${k}: ${v ?? 'removed'}`)
+      console.log(`Updated ${issueObj.identifier} — ${parts.join(', ')}`)
+    }
+  })
+
+async function resolveTeamLabels(issueObj: { team: Promise<{ id: string } | undefined> }): Promise<{ id: string; name: string }[]> {
+  const team = await issueObj.team
+  if (!team) fail('TEAM_NOT_FOUND', "Could not resolve issue's team")
+  // Fetch both team-specific labels and workspace-level labels (team is null)
+  const result = await linear.query<{
+    issueLabels: { nodes: { id: string; name: string }[] }
+  }>(
+    `query FindLabels($teamId: ID!) {
+      issueLabels(
+        filter: { or: [{ team: { id: { eq: $teamId } } }, { team: { null: true } }] }
+        first: 250
+      ) {
+        nodes { id name }
+      }
+    }`,
+    { teamId: team.id },
+  )
+  return result.issueLabels.nodes
+}
+
 async function issueIdFromSession(): Promise<string> {
   const sessionId = process.env.LINEAR_AGENT_SESSION_ID
   if (!sessionId) {

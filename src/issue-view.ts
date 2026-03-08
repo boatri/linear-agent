@@ -48,6 +48,11 @@ type Assignee = {
   gitHubUserId?: string | null
 }
 
+type Label = {
+  name: string
+  color: string
+}
+
 type IssueDetails = {
   identifier: string
   title: string
@@ -56,6 +61,11 @@ type IssueDetails = {
   branchName: string
   state: { name: string; color: string }
   assignee?: Assignee | null
+  priority: number
+  project?: { name: string } | null
+  dueDate?: string | null
+  estimate?: number | null
+  labels?: Label[]
   parent?: IssueRef | null
   children?: IssueRef[]
   comments?: Comment[]
@@ -72,6 +82,13 @@ const ISSUE_QUERY = `
       branchName
       state { name color }
       assignee { name displayName gitHubUserId }
+      priority
+      project { name }
+      dueDate
+      estimate
+      labels(first: 50) {
+        nodes { name color }
+      }
       parent {
         identifier title
         state { name color }
@@ -103,6 +120,7 @@ export async function fetchIssue(issueId: string): Promise<IssueDetails> {
   const data = await linear.query<{ issue: any }>(ISSUE_QUERY, { id: issueId })
   return {
     ...data.issue,
+    labels: data.issue.labels?.nodes ?? [],
     children: data.issue.children?.nodes ?? [],
     comments: data.issue.comments?.nodes ?? [],
     attachments: data.issue.attachments?.nodes ?? [],
@@ -141,7 +159,8 @@ export async function viewIssue(issueId: string, opts: { download?: boolean; com
 
   const { identifier, title, assignee } = issueData
   const assigneeLabel = await formatAssigneeLabel(assignee)
-  let markdown = `# ${identifier}: ${title}${description ? '\n\n' + description : ''}`
+  const parentLine = issueData.parent ? `\n## Parent: ${issueData.parent.identifier} ${issueData.parent.title}` : ''
+  let markdown = `# ${identifier}: ${title}${parentLine}${description ? '\n\n' + description : ''}`
 
   if (process.stdout.isTTY) {
     const width = process.stdout.columns ?? 80
@@ -152,20 +171,27 @@ export async function viewIssue(issueId: string, opts: { download?: boolean; com
 
     const metaLines = [`**State:** ${issueData.state.name}`]
     if (assigneeLabel) metaLines.push(`**Assignee:** ${assigneeLabel}`)
+    if (issueData.priority > 0) metaLines.push(`**Priority:** ${formatPriority(issueData.priority)}`)
+    if (issueData.project) metaLines.push(`**Project:** ${issueData.project.name}`)
+    if (issueData.dueDate) metaLines.push(`**Due date:** ${issueData.dueDate}`)
+    if (issueData.estimate) metaLines.push(`**Estimate:** ${issueData.estimate}`)
+    if (issueData.labels && issueData.labels.length > 0) metaLines.push(`**Labels:** ${issueData.labels.map((l) => `\`${l.name}\``).join(', ')}`)
     outputLines.push(...(md.parse(metaLines.join('\n')) as string).split('\n'))
 
-    const hierarchyMd = formatIssueHierarchyAsMarkdown(issueData.parent, issueData.children)
+    const hierarchyMd = formatSubissuesAsMarkdown(issueData.children)
     if (hierarchyMd) {
       outputLines.push(...(md.parse(hierarchyMd) as string).split('\n'))
     }
 
     if (issueData.attachments && issueData.attachments.length > 0) {
       const attMd = formatAttachmentsAsMarkdown(issueData.attachments, attachmentPaths)
-      outputLines.push(...(md.parse(attMd) as string).split('\n'))
+      const attLines = (md.parse(attMd) as string).split('\n')
+      while (attLines.at(-1)?.trim() === '') attLines.pop()
+      outputLines.push(...attLines)
     }
 
     if (comments && comments.length > 0) {
-      outputLines.push('')
+      outputLines.push('\n')
       outputLines.push(...captureCommentsForTerminal(comments, md, expandComments))
     }
 
@@ -178,8 +204,13 @@ export async function viewIssue(issueId: string, opts: { download?: boolean; com
     if (assigneeLabel) {
       markdown += `\n**Assignee:** ${assigneeLabel}`
     }
+    if (issueData.priority > 0) markdown += `\n**Priority:** ${formatPriority(issueData.priority)}`
+    if (issueData.project) markdown += `\n**Project:** ${issueData.project.name}`
+    if (issueData.dueDate) markdown += `\n**Due date:** ${issueData.dueDate}`
+    if (issueData.estimate) markdown += `\n**Estimate:** ${issueData.estimate}`
+    if (issueData.labels && issueData.labels.length > 0) markdown += `\n**Labels:** ${issueData.labels.map((l) => `\`${l.name}\``).join(', ')}`
 
-    markdown += formatIssueHierarchyAsMarkdown(issueData.parent, issueData.children)
+    markdown += formatSubissuesAsMarkdown(issueData.children)
 
     if (issueData.attachments && issueData.attachments.length > 0) {
       markdown += formatAttachmentsAsMarkdown(issueData.attachments, attachmentPaths)
@@ -188,7 +219,7 @@ export async function viewIssue(issueId: string, opts: { download?: boolean; com
     if (comments && comments.length > 0) {
       const commentsMd = formatCommentsAsMarkdown(comments, expandComments)
       if (commentsMd.trim()) {
-        markdown += '\n\n## Comments\n\n' + commentsMd
+        markdown += '\n## Comments\n\n' + commentsMd
       }
     }
 
@@ -234,17 +265,18 @@ function formatCommentHeader(author: string, date: string, indent = ''): string 
   return `${indent}${chalk.bold.underline(`@${author}`)} ${chalk.underline(`commented ${date}`)}`
 }
 
-function formatIssueHierarchyAsMarkdown(parent: IssueRef | null | undefined, children: IssueRef[] | undefined): string {
-  let md = ''
-  if (parent) {
-    md += `\n\n## Parent\n\n`
-    md += `- **${parent.identifier}**: ${parent.title} _[${parent.state.name}]_\n`
-  }
-  if (children && children.length > 0) {
-    md += `\n\n## Sub-issues\n\n`
-    for (const child of children) {
-      md += `- **${child.identifier}**: ${child.title} _[${child.state.name}]_\n`
-    }
+const PRIORITY_LABELS: Record<number, string> = { 1: 'Urgent', 2: 'High', 3: 'Normal', 4: 'Low' }
+
+function formatPriority(priority: number): string {
+  const label = PRIORITY_LABELS[priority]
+  return label ? `${priority} (${label})` : `${priority}`
+}
+
+function formatSubissuesAsMarkdown(children: IssueRef[] | undefined): string {
+  if (!children || children.length === 0) return ''
+  let md = `\n\n## Sub-issues\n\n`
+  for (const child of children) {
+    md += `- **${child.identifier}**: ${child.title} _[${child.state.name}]_\n`
   }
   return md
 }
